@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Verilator
+obj_dir/
+sim_build/
+
+# cocotb
+results.xml
+
+# Waveforms
+*.vcd
+*.fst
+
+# Build
+build/
+
+# OpenROAD generated files
+logs/
+reports/
+results/
+
+# Editor
+.vscode/
