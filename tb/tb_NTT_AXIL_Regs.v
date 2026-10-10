@@ -1,64 +1,81 @@
 `timescale 1ns / 1ps
 // !!!AI-GENERATED!!!
 //======================================================================
-// Testbench: NTT_AXIL_Regs_tb
+// Testbench: tb_NTT_AXIL_Regs
 //
 // Purpose:
-//   Verify the AXI4-Lite WRITE path of NTT_AXIL_Regs.
+//   Verify the AXI4-Lite READ and WRITE paths of NTT_AXIL_Regs.
 //
 //   In this testbench:
 //
-//       Testbench = AXI Master
-//       DUT       = AXI Slave
-//
-//   We will verify:
-//
-//       1. Reset
-//       2. AW and W arrive together
-//       3. AW arrives before W
-//       4. W arrives before AW
-//       5. WSTRB partial write
-//       6. B channel backpressure
-//       7. CONTROL register / Start_pulse / Mode
+//       Testbench = AXI4-Lite Master
+//       DUT       = AXI4-Lite Slave
 //
 //----------------------------------------------------------------------
-// AXI4-Lite WRITE transaction:
+// AXI4-Lite has five independent channels:
 //
-//              AXI Master                    AXI Slave
-//              Testbench                   NTT_AXIL_Regs
+// WRITE:
 //
-// AW Channel:
+//   1. AW = Write Address
+//   2. W  = Write Data
+//   3. B  = Write Response
 //
-//     AWADDR   -------------------------------->
-//     AWVALID  -------------------------------->
-//     AWREADY  <--------------------------------
+// READ:
 //
-// W Channel:
+//   4. AR = Read Address
+//   5. R  = Read Data / Response
 //
-//     WDATA    -------------------------------->
-//     WSTRB    -------------------------------->
-//     WVALID   -------------------------------->
-//     WREADY   <--------------------------------
+//----------------------------------------------------------------------
+// AXI Handshake Rule:
 //
-// B Channel:
+//   A transfer happens at a rising edge only when:
 //
-//     BRESP    <--------------------------------
-//     BVALID   <--------------------------------
-//     BREADY   -------------------------------->
+//       VALID == 1
+//       AND
+//       READY == 1
 //
-// IMPORTANT:
+// Example:
 //
-//   AW and W are INDEPENDENT channels.
+//       VALID = 1
+//       READY = 0
 //
-//   Therefore:
+//   => No transfer.
 //
-//       AW can arrive first.
-//       W can arrive first.
-//       AW and W can arrive together.
+//       VALID = 1
+//       READY = 1
+//
+//   => Transfer occurs at that rising edge.
 //
 //======================================================================
 
 module tb_NTT_AXIL_Regs;
+
+
+    //==================================================================
+    // Register Map
+    //==================================================================
+    //
+    // Must match the address map in NTT_AXIL_Regs.v
+    //
+    // 0x00 CONTROL
+    //      bit 0 = START command
+    //      bit 1 = MODE
+    //
+    // 0x04 STATUS
+    //      bit 0 = Busy
+    //      bit 1 = Done
+    //      bit 2 = Error
+    //
+    // 0x08 SRC_ADDR
+    //
+    // 0x0C DST_ADDR
+    //
+    //==================================================================
+
+    localparam [31:0] ADDR_CONTROL  = 32'h0000_0000;
+    localparam [31:0] ADDR_STATUS   = 32'h0000_0004;
+    localparam [31:0] ADDR_SRC_ADDR = 32'h0000_0008;
+    localparam [31:0] ADDR_DST_ADDR = 32'h0000_000C;
 
 
     //==================================================================
@@ -70,12 +87,16 @@ module tb_NTT_AXIL_Regs;
 
 
     //==================================================================
-    // AXI4-Lite AW Channel
+    // AXI4-Lite Write Address Channel
     //
-    // Testbench is Master:
+    // Master -> Slave:
     //
-    //   AWADDR, AWVALID -> driven by TB
-    //   AWREADY          -> driven by DUT
+    //   AWADDR
+    //   AWVALID
+    //
+    // Slave -> Master:
+    //
+    //   AWREADY
     //==================================================================
 
     reg  [31:0] S_AXI_AWADDR;
@@ -84,12 +105,7 @@ module tb_NTT_AXIL_Regs;
 
 
     //==================================================================
-    // AXI4-Lite W Channel
-    //
-    // Testbench is Master:
-    //
-    //   WDATA, WSTRB, WVALID -> driven by TB
-    //   WREADY               -> driven by DUT
+    // AXI4-Lite Write Data Channel
     //==================================================================
 
     reg  [31:0] S_AXI_WDATA;
@@ -99,21 +115,70 @@ module tb_NTT_AXIL_Regs;
 
 
     //==================================================================
-    // AXI4-Lite B Channel
-    //
-    // DUT is Slave:
-    //
-    //   BRESP, BVALID -> driven by DUT
-    //   BREADY        -> driven by TB
+    // AXI4-Lite Write Response Channel
     //==================================================================
 
-    wire [1:0] S_AXI_BRESP;
-    wire       S_AXI_BVALID;
-    reg        S_AXI_BREADY;
+    wire [1:0]  S_AXI_BRESP;
+    wire        S_AXI_BVALID;
+    reg         S_AXI_BREADY;
 
 
     //==================================================================
-    // DUT Control Outputs
+    // AXI4-Lite Read Address Channel
+    //
+    // Master -> Slave:
+    //
+    //   ARADDR
+    //   ARVALID
+    //
+    // Slave -> Master:
+    //
+    //   ARREADY
+    //==================================================================
+
+    reg  [31:0] S_AXI_ARADDR;
+    reg         S_AXI_ARVALID;
+    wire        S_AXI_ARREADY;
+
+
+    //==================================================================
+    // AXI4-Lite Read Data Channel
+    //
+    // Slave -> Master:
+    //
+    //   RDATA
+    //   RRESP
+    //   RVALID
+    //
+    // Master -> Slave:
+    //
+    //   RREADY
+    //==================================================================
+
+    wire [31:0] S_AXI_RDATA;
+    wire [1:0]  S_AXI_RRESP;
+    wire        S_AXI_RVALID;
+    reg         S_AXI_RREADY;
+
+
+    //==================================================================
+    // Accelerator status inputs
+    //
+    // These are NOT AXI signals.
+    //
+    // Eventually these signals will come from Accel_Controller.
+    //
+    // For now the testbench directly drives them so that we can verify
+    // the STATUS register read behavior.
+    //==================================================================
+
+    reg Busy;
+    reg Done;
+    reg Error;
+
+
+    //==================================================================
+    // Control outputs from register block
     //==================================================================
 
     wire        Start_pulse;
@@ -123,11 +188,14 @@ module tb_NTT_AXIL_Regs;
 
 
     //==================================================================
-    // Test statistics
+    // Testbench variables
     //==================================================================
 
     integer test_count;
     integer error_count;
+
+    // Used to store AXI read results.
+    reg [31:0] read_value;
 
 
     //==================================================================
@@ -136,26 +204,64 @@ module tb_NTT_AXIL_Regs;
 
     NTT_AXIL_Regs DUT (
 
+        // Clock / Reset
         .ACLK           (ACLK),
         .ARESETn        (ARESETn),
 
-        // AW
+        //==============================================================
+        // AXI Write Address Channel
+        //==============================================================
+
         .S_AXI_AWADDR   (S_AXI_AWADDR),
         .S_AXI_AWVALID  (S_AXI_AWVALID),
         .S_AXI_AWREADY  (S_AXI_AWREADY),
 
-        // W
+        //==============================================================
+        // AXI Write Data Channel
+        //==============================================================
+
         .S_AXI_WDATA    (S_AXI_WDATA),
         .S_AXI_WSTRB    (S_AXI_WSTRB),
         .S_AXI_WVALID   (S_AXI_WVALID),
         .S_AXI_WREADY   (S_AXI_WREADY),
 
-        // B
+        //==============================================================
+        // AXI Write Response Channel
+        //==============================================================
+
         .S_AXI_BRESP    (S_AXI_BRESP),
         .S_AXI_BVALID   (S_AXI_BVALID),
         .S_AXI_BREADY   (S_AXI_BREADY),
 
+        //==============================================================
+        // AXI Read Address Channel
+        //==============================================================
+
+        .S_AXI_ARADDR   (S_AXI_ARADDR),
+        .S_AXI_ARVALID  (S_AXI_ARVALID),
+        .S_AXI_ARREADY  (S_AXI_ARREADY),
+
+        //==============================================================
+        // AXI Read Data Channel
+        //==============================================================
+
+        .S_AXI_RDATA    (S_AXI_RDATA),
+        .S_AXI_RRESP    (S_AXI_RRESP),
+        .S_AXI_RVALID   (S_AXI_RVALID),
+        .S_AXI_RREADY   (S_AXI_RREADY),
+
+        //==============================================================
+        // Accelerator status
+        //==============================================================
+
+        .Busy           (Busy),
+        .Done           (Done),
+        .Error          (Error),
+
+        //==============================================================
         // Control outputs
+        //==============================================================
+
         .Start_pulse    (Start_pulse),
         .Mode           (Mode),
         .Src_addr       (Src_addr),
@@ -166,12 +272,11 @@ module tb_NTT_AXIL_Regs;
     //==================================================================
     // Clock Generation
     //
-    // Clock period = 10 ns
+    // Period = 10 ns
     //
     // Frequency:
     //
     //      1 / 10 ns = 100 MHz
-    //
     //==================================================================
 
     initial begin
@@ -187,34 +292,23 @@ module tb_NTT_AXIL_Regs;
 
     //==================================================================
     // Waveform Dump
-    //
-    // With Verilator --trace, this generates:
-    //
-    //      NTT_AXIL_Regs_tb.vcd
-    //
-    // Later we can open this using GTKWave.
     //==================================================================
 
     initial begin
 
         $dumpfile("NTT_AXIL_Regs_tb.vcd");
 
-        // Dump all signals below this testbench.
-        $dumpvars(0, NTT_AXIL_Regs_tb);
+        // IMPORTANT:
+        // The testbench module name is tb_NTT_AXIL_Regs.
+        $dumpvars(0, tb_NTT_AXIL_Regs);
 
     end
 
 
     //==================================================================
-    // CHECK_32 Task
+    // CHECK_32
     //
-    // Self-checking helper.
-    //
-    // Instead of only looking at waveform manually,
-    // the TB automatically compares:
-    //
-    //      Actual vs Expected
-    //
+    // Self-check helper for 32-bit values.
     //==================================================================
 
     task CHECK_32;
@@ -255,9 +349,9 @@ module tb_NTT_AXIL_Regs;
 
 
     //==================================================================
-    // CHECK_1 Task
+    // CHECK_1
     //
-    // Same idea as CHECK_32, but for 1-bit signals.
+    // Self-check helper for 1-bit values.
     //==================================================================
 
     task CHECK_1;
@@ -301,16 +395,12 @@ module tb_NTT_AXIL_Regs;
     // RESET_DUT
     //==================================================================
     //
-    // DUT reset:
+    // Reset all Master-driven AXI signals and accelerator status inputs.
     //
-    //      ARESETn = 0 -> Reset
-    //      ARESETn = 1 -> Normal
+    // ARESETn is active-low:
     //
-    // Why do we release reset at negedge?
-    //
-    //   It avoids changing ARESETn at exactly the same instant as the
-    //   positive edge where DUT sequential logic is evaluated.
-    //
+    //      0 = reset
+    //      1 = normal operation
     //==================================================================
 
     task RESET_DUT;
@@ -318,7 +408,7 @@ module tb_NTT_AXIL_Regs;
         begin
 
             //----------------------------------------------------------
-            // Put AXI Master signals into idle state.
+            // Write channels -> idle
             //----------------------------------------------------------
 
             S_AXI_AWADDR  = 32'b0;
@@ -332,15 +422,29 @@ module tb_NTT_AXIL_Regs;
 
 
             //----------------------------------------------------------
-            // Assert reset.
+            // Read channels -> idle
+            //----------------------------------------------------------
+
+            S_AXI_ARADDR  = 32'b0;
+            S_AXI_ARVALID = 1'b0;
+
+            S_AXI_RREADY  = 1'b0;
+
+
+            //----------------------------------------------------------
+            // Accelerator status -> idle
+            //----------------------------------------------------------
+
+            Busy  = 1'b0;
+            Done  = 1'b0;
+            Error = 1'b0;
+
+
+            //----------------------------------------------------------
+            // Assert reset
             //----------------------------------------------------------
 
             ARESETn = 1'b0;
-
-
-            //----------------------------------------------------------
-            // Keep reset active for two clock cycles.
-            //----------------------------------------------------------
 
             repeat(2)
                 @(posedge ACLK);
@@ -349,18 +453,12 @@ module tb_NTT_AXIL_Regs;
             //----------------------------------------------------------
             // Release reset at falling edge.
             //
-            // This gives ARESETn half a clock cycle to become stable
-            // before the next positive edge.
+            // This avoids a race with DUT sequential logic at posedge.
             //----------------------------------------------------------
 
             @(negedge ACLK);
 
             ARESETn = 1'b1;
-
-
-            //----------------------------------------------------------
-            // Wait one normal operating cycle.
-            //----------------------------------------------------------
 
             @(posedge ACLK);
 
@@ -373,28 +471,8 @@ module tb_NTT_AXIL_Regs;
 
     //==================================================================
     // SEND_AW
-    //==================================================================
     //
-    // This task performs ONLY the AXI Write Address channel.
-    //
-    // Parameters:
-    //
-    //   Address
-    //
-    //       Address to send.
-    //
-    //   Delay_cycles
-    //
-    //       Number of cycles to wait before asserting AWVALID.
-    //
-    // This allows us to intentionally create:
-    //
-    //       AW before W
-    //
-    // or:
-    //
-    //       W before AW
-    //
+    // Send one AXI Write Address transaction.
     //==================================================================
 
     task automatic SEND_AW;
@@ -406,19 +484,14 @@ module tb_NTT_AXIL_Regs;
 
         begin
 
-            //----------------------------------------------------------
-            // Optional delay.
-            //----------------------------------------------------------
-
-            for(i = 0; i < Delay_cycles; i = i + 1) begin
+            for(i = 0; i < Delay_cycles; i = i + 1)
                 @(posedge ACLK);
-            end
 
 
             //----------------------------------------------------------
-            // Drive AXI signals on falling edge.
+            // Drive signal at falling edge.
             //
-            // Therefore they are stable before the next rising edge.
+            // This makes the signal stable before the next rising edge.
             //----------------------------------------------------------
 
             @(negedge ACLK);
@@ -428,34 +501,23 @@ module tb_NTT_AXIL_Regs;
 
 
             //----------------------------------------------------------
-            // AXI Handshake rule:
+            // Wait until:
             //
             //      AWVALID && AWREADY
             //
-            // must both be 1 at rising edge.
-            //
-            // Master MUST keep AWVALID asserted while waiting for
-            // AWREADY.
+            // occurs at a rising edge.
             //----------------------------------------------------------
 
             @(posedge ACLK);
 
-            while(S_AXI_AWREADY !== 1'b1) begin
-
+            while(S_AXI_AWREADY !== 1'b1)
                 @(posedge ACLK);
-
-            end
 
 
             //----------------------------------------------------------
-            // At the previous rising edge:
+            // Handshake completed.
             //
-            //      AWVALID = 1
-            //      AWREADY = 1
-            //
-            // therefore address handshake completed.
-            //
-            // Deassert AWVALID on falling edge.
+            // Master can now deassert AWVALID.
             //----------------------------------------------------------
 
             @(negedge ACLK);
@@ -469,16 +531,10 @@ module tb_NTT_AXIL_Regs;
 
     //==================================================================
     // SEND_W
-    //==================================================================
     //
-    // Performs ONLY AXI Write Data channel.
+    // Send one AXI Write Data transaction.
     //
-    // Remember:
-    //
-    //      AW and W are independent.
-    //
-    // This task knows nothing about AW.
-    //
+    // AW and W are independent channels.
     //==================================================================
 
     task automatic SEND_W;
@@ -491,18 +547,9 @@ module tb_NTT_AXIL_Regs;
 
         begin
 
-            //----------------------------------------------------------
-            // Optional delay.
-            //----------------------------------------------------------
-
-            for(i = 0; i < Delay_cycles; i = i + 1) begin
+            for(i = 0; i < Delay_cycles; i = i + 1)
                 @(posedge ACLK);
-            end
 
-
-            //----------------------------------------------------------
-            // Present WDATA before positive edge.
-            //----------------------------------------------------------
 
             @(negedge ACLK);
 
@@ -512,25 +559,14 @@ module tb_NTT_AXIL_Regs;
 
 
             //----------------------------------------------------------
-            // Wait for:
-            //
-            //      WVALID && WREADY
-            //
-            // handshake.
+            // Wait for W handshake.
             //----------------------------------------------------------
 
             @(posedge ACLK);
 
-            while(S_AXI_WREADY !== 1'b1) begin
-
+            while(S_AXI_WREADY !== 1'b1)
                 @(posedge ACLK);
 
-            end
-
-
-            //----------------------------------------------------------
-            // W handshake completed.
-            //----------------------------------------------------------
 
             @(negedge ACLK);
 
@@ -543,26 +579,13 @@ module tb_NTT_AXIL_Regs;
 
     //==================================================================
     // WAIT_BVALID
-    //==================================================================
     //
-    // After AW and W are both accepted, DUT eventually performs:
-    //
-    //      register write
-    //
-    // then:
-    //
-    //      BVALID = 1
-    //
-    // This task waits for that response.
+    // Wait for AXI Write Response.
     //==================================================================
 
     task automatic WAIT_BVALID;
 
         begin
-
-            //----------------------------------------------------------
-            // wait() will stop here until BVALID becomes exactly 1.
-            //----------------------------------------------------------
 
             wait(S_AXI_BVALID === 1'b1);
 
@@ -570,13 +593,9 @@ module tb_NTT_AXIL_Regs;
 
 
             //----------------------------------------------------------
-            // Our first DUT version always returns:
+            // Current design always returns:
             //
-            //      BRESP = 2'b00
-            //
-            // AXI meaning:
-            //
-            //      OKAY
+            //      BRESP = 2'b00 = OKAY
             //----------------------------------------------------------
 
             if(S_AXI_BRESP !== 2'b00) begin
@@ -584,7 +603,7 @@ module tb_NTT_AXIL_Regs;
                 error_count = error_count + 1;
 
                 $display(
-                    "[FAIL] BRESP should be AXI OKAY, BRESP = %b",
+                    "[FAIL] BRESP should be OKAY, actual = %b",
                     S_AXI_BRESP
                 );
 
@@ -597,25 +616,14 @@ module tb_NTT_AXIL_Regs;
 
     //==================================================================
     // ACCEPT_B
-    //==================================================================
     //
-    // Master accepts the AXI write response.
+    // Accept the Write Response.
     //
-    // Stall_cycles allows us to intentionally keep:
+    // Stall_cycles:
     //
-    //      BREADY = 0
+    //   Number of clock cycles Master intentionally keeps BREADY low.
     //
-    // while:
-    //
-    //      BVALID = 1
-    //
-    // This creates AXI backpressure.
-    //
-    // AXI rule:
-    //
-    //      Once BVALID is asserted,
-    //      it must stay asserted until BREADY handshake.
-    //
+    // This tests AXI backpressure.
     //==================================================================
 
     task automatic ACCEPT_B;
@@ -626,22 +634,15 @@ module tb_NTT_AXIL_Regs;
 
         begin
 
-            //----------------------------------------------------------
-            // Make sure response already exists.
-            //----------------------------------------------------------
-
             wait(S_AXI_BVALID === 1'b1);
-
-
-            //----------------------------------------------------------
-            // Keep BREADY low intentionally.
-            //----------------------------------------------------------
 
             S_AXI_BREADY = 1'b0;
 
 
             //----------------------------------------------------------
-            // During backpressure, BVALID must NOT disappear.
+            // During BREADY=0:
+            //
+            // BVALID must stay asserted.
             //----------------------------------------------------------
 
             for(i = 0; i < Stall_cycles; i = i + 1) begin
@@ -664,10 +665,7 @@ module tb_NTT_AXIL_Regs;
 
 
             //----------------------------------------------------------
-            // Master becomes ready.
-            //
-            // Drive BREADY at falling edge so it is stable before
-            // next rising edge.
+            // Master accepts response.
             //----------------------------------------------------------
 
             @(negedge ACLK);
@@ -676,28 +674,17 @@ module tb_NTT_AXIL_Regs;
 
 
             //----------------------------------------------------------
-            // At this rising edge:
-            //
-            //      BVALID = 1
-            //      BREADY = 1
-            //
-            // => B-channel handshake.
+            // BVALID && BREADY at this rising edge
+            // completes the B transaction.
             //----------------------------------------------------------
 
             @(posedge ACLK);
 
-
-            //----------------------------------------------------------
-            // Wait until sequential logic has updated.
-            //----------------------------------------------------------
-
-            @(negedge ACLK);
-
-            S_AXI_BREADY = 1'b0;
+            #1;
 
 
             //----------------------------------------------------------
-            // BVALID should now be cleared by DUT.
+            // DUT should clear BVALID.
             //----------------------------------------------------------
 
             if(S_AXI_BVALID !== 1'b0) begin
@@ -710,6 +697,11 @@ module tb_NTT_AXIL_Regs;
 
             end
 
+
+            @(negedge ACLK);
+
+            S_AXI_BREADY = 1'b0;
+
         end
 
     endtask
@@ -717,32 +709,18 @@ module tb_NTT_AXIL_Regs;
 
     //==================================================================
     // AXI_WRITE
-    //==================================================================
     //
-    // Complete AXI4-Lite write transaction.
+    // Complete one AXI4-Lite Write transaction.
     //
-    // AW and W run IN PARALLEL using fork...join.
+    // fork...join is important because:
     //
-    // This is very important.
+    //      AW and W are independent channels.
     //
-    // Wrong idea:
+    // We must NOT artificially force:
     //
-    //      SEND_AW();
-    //      SEND_W();
+    //      AW -> W
     //
-    // That would artificially force AW to complete before W.
-    //
-    // AXI does NOT require that.
-    //
-    // Therefore:
-    //
-    //      fork
-    //          SEND_AW
-    //          SEND_W
-    //      join
-    //
-    // allows both channels to operate independently.
-    //
+    // ordering.
     //==================================================================
 
     task automatic AXI_WRITE;
@@ -756,10 +734,6 @@ module tb_NTT_AXIL_Regs;
         input integer B_stall;
 
         begin
-
-            //----------------------------------------------------------
-            // AW and W channels run simultaneously.
-            //----------------------------------------------------------
 
             fork
 
@@ -777,21 +751,365 @@ module tb_NTT_AXIL_Regs;
             join
 
 
-            //----------------------------------------------------------
-            // AW and W have both completed.
-            //
-            // DUT should now eventually generate BVALID.
-            //----------------------------------------------------------
-
             WAIT_BVALID();
-
-
-            //----------------------------------------------------------
-            // Accept B response.
-            //----------------------------------------------------------
 
             ACCEPT_B(
                 B_stall
+            );
+
+        end
+
+    endtask
+
+
+    //==================================================================
+    // SEND_AR
+    //
+    // Send one AXI Read Address transaction.
+    //
+    // Read Address Channel:
+    //
+    //      Master                     Slave
+    //
+    //      ARADDR  ------------------>
+    //      ARVALID ------------------>
+    //      ARREADY <------------------
+    //
+    // Handshake:
+    //
+    //      ARVALID && ARREADY
+    //
+    //==================================================================
+
+    task automatic SEND_AR;
+
+        input [31:0] Address;
+        input integer Delay_cycles;
+
+        integer i;
+
+        begin
+
+            //----------------------------------------------------------
+            // Optional delay
+            //----------------------------------------------------------
+
+            for(i = 0; i < Delay_cycles; i = i + 1)
+                @(posedge ACLK);
+
+
+            //----------------------------------------------------------
+            // Present ARADDR and ARVALID before next rising edge.
+            //----------------------------------------------------------
+
+            @(negedge ACLK);
+
+            S_AXI_ARADDR  = Address;
+            S_AXI_ARVALID = 1'b1;
+
+
+            //----------------------------------------------------------
+            // Wait until Slave accepts the address.
+            //
+            // While ARREADY=0:
+            //
+            //      ARVALID must stay 1
+            //      ARADDR must stay unchanged
+            //----------------------------------------------------------
+
+            @(posedge ACLK);
+
+            while(S_AXI_ARREADY !== 1'b1)
+                @(posedge ACLK);
+
+
+            //----------------------------------------------------------
+            // AR handshake completed.
+            //----------------------------------------------------------
+
+            @(negedge ACLK);
+
+            S_AXI_ARVALID = 1'b0;
+
+        end
+
+    endtask
+
+
+    //==================================================================
+    // WAIT_RVALID
+    //
+    // Wait for the Slave to produce read data.
+    //
+    // RVALID means:
+    //
+    //      "RDATA and RRESP are valid."
+    //
+    //==================================================================
+
+    task automatic WAIT_RVALID;
+
+        begin
+
+            wait(S_AXI_RVALID === 1'b1);
+
+            #1;
+
+
+            //----------------------------------------------------------
+            // Current design always uses:
+            //
+            //      RRESP = 00 = OKAY
+            //----------------------------------------------------------
+
+            if(S_AXI_RRESP !== 2'b00) begin
+
+                error_count = error_count + 1;
+
+                $display(
+                    "[FAIL] RRESP should be OKAY, actual = %b",
+                    S_AXI_RRESP
+                );
+
+            end
+
+        end
+
+    endtask
+
+
+    //==================================================================
+    // ACCEPT_R
+    //
+    // Accept one AXI Read Data transaction.
+    //
+    // Stall_cycles allows us to intentionally keep:
+    //
+    //      RREADY = 0
+    //
+    // after:
+    //
+    //      RVALID = 1
+    //
+    // AXI requires:
+    //
+    //      RVALID must stay HIGH
+    //      RDATA  must stay stable
+    //      RRESP  must stay stable
+    //
+    // until RVALID && RREADY handshake.
+    //
+    //==================================================================
+
+    task automatic ACCEPT_R;
+
+        input integer Stall_cycles;
+        output [31:0] Read_data;
+
+        integer i;
+
+        reg [31:0] Held_data;
+        reg [1:0]  Held_resp;
+
+        begin
+
+            //----------------------------------------------------------
+            // Make sure response exists.
+            //----------------------------------------------------------
+
+            wait(S_AXI_RVALID === 1'b1);
+
+            #1;
+
+
+            //----------------------------------------------------------
+            // Capture the original response.
+            //
+            // During backpressure these values MUST NOT change.
+            //----------------------------------------------------------
+
+            Held_data = S_AXI_RDATA;
+            Held_resp = S_AXI_RRESP;
+
+            S_AXI_RREADY = 1'b0;
+
+
+            //----------------------------------------------------------
+            // Apply backpressure.
+            //----------------------------------------------------------
+
+            for(i = 0; i < Stall_cycles; i = i + 1) begin
+
+                @(posedge ACLK);
+
+                #1;
+
+
+                //------------------------------------------------------
+                // RVALID cannot disappear before RREADY handshake.
+                //------------------------------------------------------
+
+                if(S_AXI_RVALID !== 1'b1) begin
+
+                    error_count = error_count + 1;
+
+                    $display(
+                        "[FAIL] RVALID dropped while RREADY = 0"
+                    );
+
+                end
+
+
+                //------------------------------------------------------
+                // RDATA cannot change while transaction is stalled.
+                //------------------------------------------------------
+
+                if(S_AXI_RDATA !== Held_data) begin
+
+                    error_count = error_count + 1;
+
+                    $display(
+                        "[FAIL] RDATA changed while RREADY = 0"
+                    );
+
+                end
+
+
+                //------------------------------------------------------
+                // RRESP must also remain stable.
+                //------------------------------------------------------
+
+                if(S_AXI_RRESP !== Held_resp) begin
+
+                    error_count = error_count + 1;
+
+                    $display(
+                        "[FAIL] RRESP changed while RREADY = 0"
+                    );
+
+                end
+
+
+                //------------------------------------------------------
+                // Our current Slave supports only one outstanding read.
+                //
+                // While RVALID is still pending:
+                //
+                //      ARREADY should be 0.
+                //------------------------------------------------------
+
+                if(S_AXI_ARREADY !== 1'b0) begin
+
+                    error_count = error_count + 1;
+
+                    $display(
+                        "[FAIL] ARREADY should be low while RVALID is pending"
+                    );
+
+                end
+
+            end
+
+
+            //----------------------------------------------------------
+            // Store returned data for caller.
+            //----------------------------------------------------------
+
+            Read_data = Held_data;
+
+
+            //----------------------------------------------------------
+            // Master becomes ready.
+            //----------------------------------------------------------
+
+            @(negedge ACLK);
+
+            S_AXI_RREADY = 1'b1;
+
+
+            //----------------------------------------------------------
+            // RVALID && RREADY at this rising edge:
+            //
+            //      Read transaction completes.
+            //----------------------------------------------------------
+
+            @(posedge ACLK);
+
+            #1;
+
+
+            //----------------------------------------------------------
+            // DUT should clear RVALID after handshake.
+            //----------------------------------------------------------
+
+            if(S_AXI_RVALID !== 1'b0) begin
+
+                error_count = error_count + 1;
+
+                $display(
+                    "[FAIL] RVALID did not clear after R handshake"
+                );
+
+            end
+
+
+            @(negedge ACLK);
+
+            S_AXI_RREADY = 1'b0;
+
+        end
+
+    endtask
+
+
+    //==================================================================
+    // AXI_READ
+    //
+    // Complete one AXI4-Lite Read transaction.
+    //
+    // Sequence:
+    //
+    //      1. Send ARADDR
+    //      2. Wait for RVALID
+    //      3. Optionally stall RREADY
+    //      4. Accept RDATA
+    //
+    //==================================================================
+
+    task automatic AXI_READ;
+
+        input  [31:0] Address;
+        input  integer R_stall;
+        output [31:0] Read_data;
+
+        begin
+
+            //----------------------------------------------------------
+            // Step 1: send read address
+            //----------------------------------------------------------
+
+            SEND_AR(
+                Address,
+                0
+            );
+
+
+            //----------------------------------------------------------
+            // Step 2: wait for Slave read response
+            //----------------------------------------------------------
+
+            WAIT_RVALID();
+
+
+            //----------------------------------------------------------
+            // Step 3/4:
+            //
+            // optionally stall and then accept response.
+            //----------------------------------------------------------
+
+            ACCEPT_R(
+                R_stall,
+                Read_data
             );
 
         end
@@ -815,6 +1133,8 @@ module tb_NTT_AXIL_Regs;
 
         ARESETn = 1'b0;
 
+
+        // Write Master signals
         S_AXI_AWADDR  = 32'b0;
         S_AXI_AWVALID = 1'b0;
 
@@ -825,9 +1145,21 @@ module tb_NTT_AXIL_Regs;
         S_AXI_BREADY  = 1'b0;
 
 
+        // Read Master signals
+        S_AXI_ARADDR  = 32'b0;
+        S_AXI_ARVALID = 1'b0;
+
+        S_AXI_RREADY  = 1'b0;
+
+
+        // Accelerator status
+        Busy  = 1'b0;
+        Done  = 1'b0;
+        Error = 1'b0;
+
+
         //==============================================================
-        // TEST 1
-        // RESET
+        // TEST 1: RESET
         //==============================================================
 
         $display("");
@@ -836,6 +1168,7 @@ module tb_NTT_AXIL_Regs;
         $display("================================================");
 
         RESET_DUT();
+
 
         CHECK_1(
             Start_pulse,
@@ -867,44 +1200,37 @@ module tb_NTT_AXIL_Regs;
             "Reset BVALID"
         );
 
+        CHECK_1(
+            S_AXI_RVALID,
+            1'b0,
+            "Reset RVALID"
+        );
+
+        CHECK_32(
+            S_AXI_RDATA,
+            32'h0000_0000,
+            "Reset RDATA"
+        );
+
 
         //==============================================================
-        // TEST 2
-        // AW and W arrive at the same time
+        // TEST 2: BASIC AXI WRITE
+        //
+        // AW and W arrive together.
         //==============================================================
 
         $display("");
         $display("================================================");
         $display("TEST 2: BASIC AXI WRITE");
-        $display("AW and W arrive together");
         $display("================================================");
 
-        //--------------------------------------------------------------
-        // Write:
-        //
-        //      SRC_ADDR = 0x12345678
-        //
-        // Address offset:
-        //
-        //      0x08
-        //
-        // WSTRB:
-        //
-        //      1111 = all four bytes enabled
-        //
-        // AW_delay = 0
-        // W_delay  = 0
-        //
-        // Therefore AW and W begin together.
-        //--------------------------------------------------------------
-
         AXI_WRITE(
-            32'h0000_0008,
+            ADDR_SRC_ADDR,
             32'h1234_5678,
             4'b1111,
-            0,
-            0,
-            0
+            0,          // AW delay
+            0,          // W delay
+            0           // B stall
         );
 
         CHECK_32(
@@ -915,8 +1241,7 @@ module tb_NTT_AXIL_Regs;
 
 
         //==============================================================
-        // TEST 3
-        // AW arrives BEFORE W
+        // TEST 3: AW BEFORE W
         //==============================================================
 
         $display("");
@@ -924,29 +1249,13 @@ module tb_NTT_AXIL_Regs;
         $display("TEST 3: AW BEFORE W");
         $display("================================================");
 
-        //--------------------------------------------------------------
-        // AW immediately.
-        //
-        // W waits three clock cycles.
-        //
-        // Expected behavior:
-        //
-        //      DUT stores AWADDR in awaddr_reg.
-        //
-        //      awaddr_pending = 1
-        //
-        //      DUT waits for WDATA.
-        //
-        // This directly tests whether AW and W are truly independent.
-        //--------------------------------------------------------------
-
         AXI_WRITE(
-            32'h0000_000C,
+            ADDR_DST_ADDR,
             32'hCAFE_BABE,
             4'b1111,
-            0,              // AW delay
-            3,              // W delay
-            0               // B stall
+            0,          // AW immediately
+            3,          // W 3 cycles later
+            0
         );
 
         CHECK_32(
@@ -957,8 +1266,7 @@ module tb_NTT_AXIL_Regs;
 
 
         //==============================================================
-        // TEST 4
-        // W arrives BEFORE AW
+        // TEST 4: W BEFORE AW
         //==============================================================
 
         $display("");
@@ -966,29 +1274,12 @@ module tb_NTT_AXIL_Regs;
         $display("TEST 4: W BEFORE AW");
         $display("================================================");
 
-        //--------------------------------------------------------------
-        // Reverse TEST 3.
-        //
-        // WDATA arrives immediately.
-        //
-        // AWADDR arrives three clocks later.
-        //
-        // Expected:
-        //
-        //      DUT stores:
-        //
-        //          wdata_reg
-        //          wstrb_reg
-        //
-        //      and waits for AWADDR.
-        //--------------------------------------------------------------
-
         AXI_WRITE(
-            32'h0000_0008,
+            ADDR_SRC_ADDR,
             32'hDEAD_BEEF,
             4'b1111,
-            3,              // AW delay
-            0,              // W delay
+            3,          // AW later
+            0,          // W immediately
             0
         );
 
@@ -1000,8 +1291,7 @@ module tb_NTT_AXIL_Regs;
 
 
         //==============================================================
-        // TEST 5
-        // WSTRB partial write
+        // TEST 5: WSTRB PARTIAL WRITE
         //==============================================================
 
         $display("");
@@ -1009,14 +1299,10 @@ module tb_NTT_AXIL_Regs;
         $display("TEST 5: WSTRB PARTIAL WRITE");
         $display("================================================");
 
-        //--------------------------------------------------------------
-        // First initialize:
-        //
-        //      SRC_ADDR = 0x11223344
-        //--------------------------------------------------------------
 
+        // First initialize value.
         AXI_WRITE(
-            32'h0000_0008,
+            ADDR_SRC_ADDR,
             32'h1122_3344,
             4'b1111,
             0,
@@ -1032,40 +1318,21 @@ module tb_NTT_AXIL_Regs;
 
 
         //--------------------------------------------------------------
-        // Second write:
+        // WDATA = AABBCCDD
         //
-        //      WDATA = AABBCCDD
+        // WSTRB = 0010
         //
-        //      WSTRB = 0010
+        // Only byte [15:8] is written.
         //
-        // Only WSTRB[1] is enabled.
+        // Expected:
         //
-        // Therefore only:
-        //
-        //      bits [15:8]
-        //
-        // are replaced.
-        //
-        //
-        // Initial:
-        //
-        //      11 22 33 44
-        //
-        // New:
-        //
-        //      AA BB CC DD
-        //
-        // Strobe:
-        //
-        //       0  0  1  0
-        //
-        // Result:
-        //
-        //      11 22 CC 44
+        //      11223344
+        //          ↓
+        //      1122CC44
         //--------------------------------------------------------------
 
         AXI_WRITE(
-            32'h0000_0008,
+            ADDR_SRC_ADDR,
             32'hAABB_CCDD,
             4'b0010,
             0,
@@ -1081,8 +1348,7 @@ module tb_NTT_AXIL_Regs;
 
 
         //==============================================================
-        // TEST 6
-        // BREADY Backpressure
+        // TEST 6: BREADY BACKPRESSURE
         //==============================================================
 
         $display("");
@@ -1090,29 +1356,13 @@ module tb_NTT_AXIL_Regs;
         $display("TEST 6: BREADY BACKPRESSURE");
         $display("================================================");
 
-        //--------------------------------------------------------------
-        // B_stall = 3
-        //
-        // After DUT asserts:
-        //
-        //      BVALID = 1
-        //
-        // Master intentionally holds:
-        //
-        //      BREADY = 0
-        //
-        // for three cycles.
-        //
-        // AXI requires BVALID to remain HIGH.
-        //--------------------------------------------------------------
-
         AXI_WRITE(
-            32'h0000_000C,
+            ADDR_DST_ADDR,
             32'h5566_7788,
             4'b1111,
             0,
             0,
-            3               // BREADY stall
+            3           // Hold BREADY low for 3 clocks
         );
 
         CHECK_32(
@@ -1123,8 +1373,7 @@ module tb_NTT_AXIL_Regs;
 
 
         //==============================================================
-        // TEST 7
-        // CONTROL Register
+        // TEST 7: CONTROL / START / MODE
         //==============================================================
 
         $display("");
@@ -1134,32 +1383,21 @@ module tb_NTT_AXIL_Regs;
 
 
         //--------------------------------------------------------------
-        // We do NOT use AXI_WRITE here.
+        // CONTROL = 0x3
         //
-        // Why?
+        // bit 0 = START = 1
+        // bit 1 = MODE  = 1
         //
-        // Because AXI_WRITE waits until the whole B transaction
-        // completes.
-        //
-        // But Start_pulse is only HIGH for one clock.
-        //
-        // Therefore we want to inspect Start_pulse exactly when
-        // the DUT generates BVALID.
+        // We don't use AXI_WRITE because Start_pulse exists only
+        // for one clock and we want to observe it before B finishes.
         //--------------------------------------------------------------
 
         fork
 
             SEND_AW(
-                32'h0000_0000,
+                ADDR_CONTROL,
                 0
             );
-
-            //----------------------------------------------------------
-            // WDATA = 3:
-            //
-            //      bit 1 = MODE  = 1
-            //      bit 0 = START = 1
-            //----------------------------------------------------------
 
             SEND_W(
                 32'h0000_0003,
@@ -1169,18 +1407,6 @@ module tb_NTT_AXIL_Regs;
 
         join
 
-
-        //--------------------------------------------------------------
-        // Wait until the DUT executes CONTROL write.
-        //
-        // In our DUT:
-        //
-        //      Start_pulse <= 1
-        //      Mode        <= 1
-        //      BVALID      <= 1
-        //
-        // occur during the same register-write event.
-        //--------------------------------------------------------------
 
         WAIT_BVALID();
 
@@ -1199,12 +1425,13 @@ module tb_NTT_AXIL_Regs;
 
 
         //--------------------------------------------------------------
-        // Start_pulse should last only ONE clock cycle.
+        // START must only last one clock.
         //--------------------------------------------------------------
 
         @(posedge ACLK);
 
         #1;
+
 
         CHECK_1(
             Start_pulse,
@@ -1214,9 +1441,7 @@ module tb_NTT_AXIL_Regs;
 
 
         //--------------------------------------------------------------
-        // Mode is a stored register.
-        //
-        // Unlike Start_pulse, Mode should stay HIGH.
+        // MODE is persistent.
         //--------------------------------------------------------------
 
         CHECK_1(
@@ -1226,18 +1451,13 @@ module tb_NTT_AXIL_Regs;
         );
 
 
-        //--------------------------------------------------------------
-        // Finally accept B response.
-        //--------------------------------------------------------------
-
         ACCEPT_B(
             0
         );
 
 
         //==============================================================
-        // TEST 8
-        // CONTROL WSTRB
+        // TEST 8: CONTROL WSTRB
         //==============================================================
 
         $display("");
@@ -1246,11 +1466,11 @@ module tb_NTT_AXIL_Regs;
         $display("================================================");
 
         //--------------------------------------------------------------
-        // MODE currently = 1.
+        // Mode is currently 1.
         //
-        // Try writing:
+        // Try:
         //
-        //      CONTROL data = 0
+        //      CONTROL = 0
         //
         // but:
         //
@@ -1258,13 +1478,12 @@ module tb_NTT_AXIL_Regs;
         //
         // WSTRB[0] = 0.
         //
-        // START and MODE live inside byte 0.
-        //
-        // Therefore CONTROL must NOT change.
+        // Since START/MODE are inside byte 0,
+        // Mode must NOT change.
         //--------------------------------------------------------------
 
         AXI_WRITE(
-            32'h0000_0000,
+            ADDR_CONTROL,
             32'h0000_0000,
             4'b1110,
             0,
@@ -1276,6 +1495,355 @@ module tb_NTT_AXIL_Regs;
             Mode,
             1'b1,
             "CONTROL ignored when WSTRB[0] = 0"
+        );
+
+
+        //==============================================================
+        // TEST 9: READ SRC_ADDR
+        //==============================================================
+
+        $display("");
+        $display("================================================");
+        $display("TEST 9: READ SRC_ADDR");
+        $display("================================================");
+
+
+        //--------------------------------------------------------------
+        // Current Src_addr should still be:
+        //
+        //      0x1122CC44
+        //
+        // because TEST 5 was the last write to SRC_ADDR.
+        //--------------------------------------------------------------
+
+        AXI_READ(
+            ADDR_SRC_ADDR,
+            0,
+            read_value
+        );
+
+        CHECK_32(
+            read_value,
+            32'h1122_CC44,
+            "Read SRC_ADDR"
+        );
+
+
+        //==============================================================
+        // TEST 10: READ DST_ADDR
+        //==============================================================
+
+        $display("");
+        $display("================================================");
+        $display("TEST 10: READ DST_ADDR");
+        $display("================================================");
+
+
+        //--------------------------------------------------------------
+        // TEST 6 last wrote:
+        //
+        //      DST_ADDR = 0x55667788
+        //--------------------------------------------------------------
+
+        AXI_READ(
+            ADDR_DST_ADDR,
+            0,
+            read_value
+        );
+
+        CHECK_32(
+            read_value,
+            32'h5566_7788,
+            "Read DST_ADDR"
+        );
+
+
+        //==============================================================
+        // TEST 11: READ CONTROL
+        //==============================================================
+
+        $display("");
+        $display("================================================");
+        $display("TEST 11: READ CONTROL");
+        $display("================================================");
+
+
+        //--------------------------------------------------------------
+        // Current Mode = 1.
+        //
+        // CONTROL read format:
+        //
+        //      bit 0 = 0
+        //              START is a command pulse, not stored state.
+        //
+        //      bit 1 = Mode = 1
+        //
+        // Therefore:
+        //
+        //      RDATA = 0x00000002
+        //--------------------------------------------------------------
+
+        AXI_READ(
+            ADDR_CONTROL,
+            0,
+            read_value
+        );
+
+        CHECK_32(
+            read_value,
+            32'h0000_0002,
+            "Read CONTROL"
+        );
+
+
+        //==============================================================
+        // TEST 12: READ STATUS
+        //==============================================================
+
+        $display("");
+        $display("================================================");
+        $display("TEST 12: READ STATUS");
+        $display("================================================");
+
+
+        //--------------------------------------------------------------
+        // STATUS:
+        //
+        // bit 0 = Busy
+        // bit 1 = Done
+        // bit 2 = Error
+        //
+        // Set:
+        //
+        //      Busy  = 1
+        //      Done  = 0
+        //      Error = 1
+        //
+        // Binary:
+        //
+        //      101
+        //
+        // Hex:
+        //
+        //      0x5
+        //--------------------------------------------------------------
+
+        Busy  = 1'b1;
+        Done  = 1'b0;
+        Error = 1'b1;
+
+
+        AXI_READ(
+            ADDR_STATUS,
+            0,
+            read_value
+        );
+
+
+        CHECK_32(
+            read_value,
+            32'h0000_0005,
+            "Read STATUS"
+        );
+
+
+        //==============================================================
+        // TEST 13: RREADY BACKPRESSURE
+        //==============================================================
+
+        $display("");
+        $display("================================================");
+        $display("TEST 13: RREADY BACKPRESSURE");
+        $display("================================================");
+
+
+        //--------------------------------------------------------------
+        // Read SRC_ADDR again.
+        //
+        // But this time:
+        //
+        //      R_stall = 3
+        //
+        // Master intentionally holds:
+        //
+        //      RREADY = 0
+        //
+        // for three clocks after RVALID appears.
+        //
+        // During these cycles:
+        //
+        //      RVALID must remain 1
+        //      RDATA must remain unchanged
+        //      RRESP must remain unchanged
+        //--------------------------------------------------------------
+
+        AXI_READ(
+            ADDR_SRC_ADDR,
+            3,
+            read_value
+        );
+
+
+        CHECK_32(
+            read_value,
+            32'h1122_CC44,
+            "RREADY backpressure"
+        );
+
+
+        //==============================================================
+        // TEST 14: STATUS SNAPSHOT DURING BACKPRESSURE
+        //==============================================================
+
+        $display("");
+        $display("================================================");
+        $display("TEST 14: STATUS SNAPSHOT DURING R STALL");
+        $display("================================================");
+
+
+        //--------------------------------------------------------------
+        // This test is important.
+        //
+        // At the moment of AR handshake:
+        //
+        //      Busy  = 1
+        //      Done  = 0
+        //      Error = 0
+        //
+        // Therefore expected STATUS:
+        //
+        //      001 = 0x1
+        //--------------------------------------------------------------
+
+        Busy  = 1'b1;
+        Done  = 1'b0;
+        Error = 1'b0;
+
+
+        //--------------------------------------------------------------
+        // Send STATUS read address.
+        //--------------------------------------------------------------
+
+        SEND_AR(
+            ADDR_STATUS,
+            0
+        );
+
+
+        //--------------------------------------------------------------
+        // Wait until DUT produces RDATA.
+        //--------------------------------------------------------------
+
+        WAIT_RVALID();
+
+
+        CHECK_32(
+            S_AXI_RDATA,
+            32'h0000_0001,
+            "STATUS snapshot initial value"
+        );
+
+
+        //--------------------------------------------------------------
+        // Master still has:
+        //
+        //      RREADY = 0
+        //
+        // Now deliberately change the REAL status inputs:
+        //
+        //      Busy  = 0
+        //      Done  = 1
+        //      Error = 1
+        //
+        // New live STATUS would be:
+        //
+        //      110 = 0x6
+        //
+        // BUT:
+        //
+        // the current AXI read transaction already returned 0x1.
+        //
+        // AXI requires RDATA to remain stable until the Master
+        // accepts it.
+        //--------------------------------------------------------------
+
+        Busy  = 1'b0;
+        Done  = 1'b1;
+        Error = 1'b1;
+
+
+        repeat(2) begin
+
+            @(posedge ACLK);
+
+            #1;
+
+
+            CHECK_1(
+                S_AXI_RVALID,
+                1'b1,
+                "RVALID held during STATUS change"
+            );
+
+
+            CHECK_32(
+                S_AXI_RDATA,
+                32'h0000_0001,
+                "RDATA stable during STATUS change"
+            );
+
+        end
+
+
+        //--------------------------------------------------------------
+        // Accept the previously generated read response.
+        //--------------------------------------------------------------
+
+        ACCEPT_R(
+            0,
+            read_value
+        );
+
+
+        CHECK_32(
+            read_value,
+            32'h0000_0001,
+            "STATUS transaction retained snapshot"
+        );
+
+
+        //==============================================================
+        // TEST 15: UNDEFINED READ ADDRESS
+        //==============================================================
+
+        $display("");
+        $display("================================================");
+        $display("TEST 15: UNDEFINED READ ADDRESS");
+        $display("================================================");
+
+
+        //--------------------------------------------------------------
+        // Current DUT behavior for undefined address:
+        //
+        //      RDATA = 0
+        //      RRESP = OKAY
+        //
+        // Later we may improve this to:
+        //
+        //      RRESP = SLVERR
+        //--------------------------------------------------------------
+
+        AXI_READ(
+            32'h0000_0010,
+            0,
+            read_value
+        );
+
+
+        CHECK_32(
+            read_value,
+            32'h0000_0000,
+            "Undefined address returns zero"
         );
 
 
@@ -1302,24 +1870,20 @@ module tb_NTT_AXIL_Regs;
         if(error_count == 0) begin
 
             $display("");
-            $display("========================================");
-            $display("ALL AXI4-LITE WRITE TESTS PASSED");
-            $display("========================================");
+            $display("==============================================");
+            $display("ALL AXI4-LITE READ/WRITE TESTS PASSED");
+            $display("==============================================");
 
         end
         else begin
 
             $display("");
-            $display("========================================");
-            $display("AXI4-LITE WRITE TEST FAILED");
-            $display("========================================");
+            $display("==============================================");
+            $display("AXI4-LITE READ/WRITE TEST FAILED");
+            $display("==============================================");
 
         end
 
-
-        //--------------------------------------------------------------
-        // Allow waveform to continue slightly before stopping.
-        //--------------------------------------------------------------
 
         #20;
 

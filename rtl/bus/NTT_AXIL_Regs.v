@@ -16,7 +16,19 @@ module NTT_AXIL_Regs (
     output [1 : 0] S_AXI_BRESP,
     output reg S_AXI_BVALID,
     input S_AXI_BREADY,
-    // Control outputs
+    // AXI4-L AR
+    input [31 : 0] S_AXI_ARADDR,
+    input S_AXI_ARVALID,
+    output S_AXI_ARREADY,
+    // AXI4-L R
+    output reg [31 : 0] S_AXI_RDATA,
+    output [1 : 0] S_AXI_RRESP,
+    output reg S_AXI_RVALID,
+    input S_AXI_RREADY,
+    // Control I/O
+    input Busy,
+    input Done,
+    input Error,
     output reg Start_pulse,
     output reg Mode,
     output reg [31 : 0] Src_addr,
@@ -38,6 +50,8 @@ module NTT_AXIL_Regs (
     assign S_AXI_AWREADY = !awaddr_pending && !S_AXI_BVALID;
     assign S_AXI_WREADY = !wdata_pending && !S_AXI_BVALID;
     assign S_AXI_BRESP = 2'b00;
+    assign S_AXI_ARREADY = !S_AXI_RVALID;
+    assign S_AXI_RRESP = 2'b00;
     function [31 : 0] Apply_wstrb;
         input [31: 0] Old_data;
         input [31: 0] New_data;
@@ -59,6 +73,8 @@ module NTT_AXIL_Regs (
             wstrb_reg <= 4'b0;
             wdata_pending <= 1'b0;
             S_AXI_BVALID <= 1'b0;
+            S_AXI_RDATA <= 32'b0;
+            S_AXI_RVALID <= 1'b0;
             Start_pulse <= 1'b0;
             Mode <= 1'b0;
             Src_addr <= 32'b0;
@@ -97,6 +113,19 @@ module NTT_AXIL_Regs (
             end
             // B handshake
             if(S_AXI_BVALID && S_AXI_BREADY) S_AXI_BVALID <= 1'b0;
+            // AR handshake
+            if(S_AXI_ARVALID && S_AXI_ARREADY) begin
+                case(S_AXI_ARADDR)
+                    ADDR_CONTROL: S_AXI_RDATA <= {30'b0, Mode, 1'b0};
+                    ADDR_STATUS: S_AXI_RDATA <= {29'b0, Error, Done, Busy};
+                    ADDR_SRC_ADDR: S_AXI_RDATA <= Src_addr;
+                    ADDR_DST_ADDR: S_AXI_RDATA <= Dst_addr;
+                    default: S_AXI_RDATA <= 32'b0;
+                endcase
+                S_AXI_RVALID <= 1'b1;
+            end
+            // R handshake
+            if(S_AXI_RVALID && S_AXI_RREADY) S_AXI_RVALID <= 1'b0;
         end
     end
 endmodule
