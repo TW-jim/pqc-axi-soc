@@ -27,3 +27,8 @@ results/
 
 # Thesis and related
 rtl/private
+tb/private
+
+# Generated NTT / INTT regression outputs
+verilog_ntt_out_new.mem
+verilog_intt_out_new.mem
