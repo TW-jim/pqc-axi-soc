@@ -37,7 +37,7 @@ V1 is intentionally used as a conservative reference implementation rather than 
 
 | Metric | V1 Baseline |
 |---|---:|
-| Generic cells | 141,556 |
+| Generic cells | 159,852 |
 | Nangate45 mapped area | 269,731 um² |
 | Core area | 897,281.84 um² |
 | Final design area | 274,408 um² |
@@ -60,26 +60,28 @@ The complete V1 flow reached:
 
 Generic synthesis showed that the original monolithic multi-port coefficient buffers dominate the SoC-side logic cost.
 
+To provide a fair V1/V2 comparison, V1 was re-synthesized using the same Yosys version, synthesis script, and reporting method used for V2.
+
 ### V1 Generic Cell Breakdown
 
-The following breakdown is derived from the Yosys synthesis results.  
+The following breakdown is derived from the controlled Yosys synthesis results.  
 Private thesis-related modules are aggregated into `Private NTT/INTT Acc` to avoid exposing the internal accelerator hierarchy.
 
 | Module | Generic Cells | Share |
 |---|---:|---:|
-| Private NTT/INTT Acc | 66,169 | 46.74% |
-| Input Buffer | 35,797 | 25.29% |
-| Output Buffer | 37,546 | 26.52% |
-| AXI Read Loader | 644 | 0.45% |
-| AXI Write Writer | 484 | 0.34% |
-| NTT Acc Control Top | 916 | 0.65% |
-| **Total** | **141,556** | **100.00%** |
+| Private NTT/INTT Acc | 65,928 | 41.24% |
+| Input Buffer | 54,865 | 34.32% |
+| Output Buffer | 38,036 | 23.79% |
+| AXI Read Loader | 321 | 0.20% |
+| AXI Write Writer | 222 | 0.14% |
+| NTT Acc Control Top | 480 | 0.30% |
+| **Total** | **159,852** | **100.00%** |
 
-**Input + Output Buffers: 73,343 generic cells (51.81% of the full design).**
+**Input + Output Buffers: 92,901 generic cells (58.12% of the full design).**
 
 The input and output buffers therefore form the largest logic-cost component in V1, motivating the banked-buffer redesign in V2.
 
-### Original Yosys Results
+### V1 Yosys Results
 
 V1 input/output buffer synthesis statistics:
 
@@ -89,19 +91,139 @@ Full-design generic cell count:
 
 ![V1 total Yosys generic cell count](V1_Total_cells.png)
 
-## V2 Plan
+## V2 Banked Buffer Architecture
 
-V2 introduces a **banked coefficient-buffer architecture**.
+V2 replaces the original monolithic multi-port coefficient buffers with a banked storage architecture.
 
-Evaluation is split into two phases:
+The redesign preserves the same logical coefficient storage capacity while reducing the multiplexing and routing logic required to support the accelerator access patterns.
 
-1. **Controlled V1 vs V2 comparison**  
-   V2 first uses the same technology, clock constraint, utilization, placement density, and flow settings as V1 so that architectural improvements can be compared fairly.
+The complete V2 functional regression passed:
 
-2. **PPA optimization**  
-   After the controlled comparison, V2 will be further explored using clock-period, utilization, density, and timing-oriented implementation sweeps.
+- Input Buffer standalone verification: 516 checks, 0 errors
+- Output Buffer standalone verification: 260 checks, 0 errors
+- Full AXI + real Dilithium end-to-end verification: 768 checks, 0 errors
+- Randomized AXI backpressure regression: 781 checks, 0 errors
+- Six continuous multi-transaction regression: 2,425 checks, 0 errors
 
-The final comparison will focus on area, timing, routing cost, congestion, and achievable frequency.
+### V2 Generic Cell Breakdown
+
+The following results use the same Yosys version, synthesis script, and reporting method as the controlled V1 synthesis.
+
+| Module | Generic Cells | Share |
+|---|---:|---:|
+| Private NTT/INTT Acc | 65,826 | 63.30% |
+| Input Buffer | 19,429 | 18.68% |
+| Output Buffer | 17,710 | 17.03% |
+| AXI Read Loader | 321 | 0.31% |
+| AXI Write Writer | 222 | 0.21% |
+| NTT Acc Control Top | 480 | 0.46% |
+| **Total** | **103,988** | **100.00%** |
+
+**Input + Output Buffers: 37,139 generic cells (35.71% of the full design).**
+
+The storage capacity remains unchanged. Both V2 buffers still contain 5,888 storage flip-flops, corresponding to the original 256 × 23-bit coefficient capacity.
+
+The reduction therefore comes primarily from the banked architecture reducing multi-port multiplexing and steering logic rather than from reducing the amount of stored data.
+
+### V2 Yosys Results
+
+V2 banked input/output buffer synthesis statistics:
+
+![V2 Banked Input and Output Buffer Yosys statistics](V2_Banked_IO_Buffer_cells.png)
+
+Full-design generic cell count:
+
+![V2 total Yosys generic cell count](V2_Total_cells.png)
+
+## Controlled V1 vs V2 Generic Synthesis Comparison
+
+Both versions were synthesized using the same Yosys version, synthesis script, and reporting method.
+
+| Metric | V1 | V2 Banked | Reduction |
+|---|---:|---:|---:|
+| Input Buffer Cells | 54,865 | 19,429 | **64.59%** |
+| Input Buffer MUXes | 10,871 | 2,588 | **76.19%** |
+| Output Buffer Cells | 38,036 | 17,710 | **53.44%** |
+| Output Buffer MUXes | 20,217 | 3,057 | **84.88%** |
+| Combined Buffer Cells | 92,901 | 37,139 | **60.02%** |
+| Full Design Cells | 159,852 | 103,988 | **34.95%** |
+
+The banked-buffer redesign reduces the generic logic cost of the two coefficient buffers by **60.02%**, while the complete design is reduced by **34.95%**.
+
+The largest reductions occur in the multiplexing logic:
+
+- Input Buffer MUX count: 10,871 → 2,588
+- Output Buffer MUX count: 20,217 → 3,057
+
+This confirms that the original bottleneck was primarily caused by the large multiplexing networks required by the monolithic multi-port buffer structures.
+
+## Controlled V1 vs V2 Physical Comparison
+
+V2 was then implemented using the same controlled physical-design conditions as V1:
+
+- Nangate45 standard-cell platform
+- 10 ns clock period
+- 100 MHz target frequency
+- 30% core-utilization target
+- 0.60 placement density
+- Same OpenROAD implementation flow
+
+| Metric | V1 Baseline | V2 Banked | Change |
+|---|---:|---:|---:|
+| Generic Cells | 159,852 | 103,988 | **-34.95%** |
+| Nangate45 Mapped Area | 269,731 um² | 248,113.894 um² | **-8.01%** |
+| Final Design Area | 274,408 um² | 253,512 um² | **-7.61%** |
+| Final Utilization | 31% | 31% | Same |
+| Routed Wirelength | 2,079,691 um | 1,723,531 um | **-17.13%** |
+| Via Count | 886,097 | 760,944 | **-14.12%** |
+| Setup Worst Slack | +6.18018 ns | +6.00561 ns | -0.17457 ns |
+| Hold Worst Slack | +0.0566224 ns | +0.0513977 ns | -0.00522 ns |
+| Setup / Hold TNS | 0 / 0 | 0 / 0 | PASS |
+| Clock Skew | ~0.0525 ns | ~0.0578 ns | Slightly higher |
+| Detailed-route Violations | 0 | 0 | PASS |
+| Antenna Violations | 0 | 0 | PASS |
+| Reported Power | 35.7 mW | 34.6 mW | **-3.08%** |
+| Final GDS | Generated locally | Generated locally | PASS |
+
+The V2 banked-buffer architecture therefore provides measurable physical-design improvements in addition to the generic synthesis reduction.
+
+At the same 100 MHz implementation target, V2 achieves:
+
+- **7.61% lower final design area**
+- **17.13% lower routed wirelength**
+- **14.12% fewer vias**
+- **3.08% lower reported power**
+
+while maintaining:
+
+- zero setup TNS
+- zero hold TNS
+- zero detailed-route violations
+- zero antenna violations
+
+The small reduction in timing slack is acceptable for this controlled comparison because both implementations still close timing with substantial positive margin.
+
+## V2 PPA Optimization Plan
+
+The controlled V1/V2 comparison is now complete.
+
+The next phase focuses on implementation-space exploration rather than architectural comparison.
+
+V2 will be further evaluated using:
+
+1. **Clock-period / achievable-frequency characterization**  
+   The clock constraint will be progressively tightened and each candidate will be run through the complete implementation flow.
+
+2. **Core-utilization exploration**  
+   Different utilization targets will be evaluated to study the area, routability, and timing trade-offs.
+
+3. **Placement-density exploration**  
+   Placement density will be varied to evaluate congestion, wirelength, timing, and final implementation quality.
+
+4. **Final PPA selection**  
+   The best timing-clean and DRC-clean implementation point will be selected based on the area, timing, routing, and power trade-offs.
+
+The 10 ns controlled result is retained as the reference baseline and is not treated as the maximum achievable operating frequency.
 
 ## Repository Notes
 
