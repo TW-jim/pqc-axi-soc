@@ -60,9 +60,34 @@ The complete V1 flow reached:
 
 Generic synthesis showed that the original monolithic multi-port coefficient buffers dominate the SoC-side logic cost.
 
-The input and output buffers together account for approximately **51.8% of the full generic cell count**, mainly due to FF/mux implementation of the multi-port storage structure.
+### V1 Generic Cell Breakdown
 
-This observation motivates the V2 redesign.
+The following breakdown is derived from the Yosys synthesis results.  
+Private thesis-related modules are aggregated into `Private NTT/INTT Acc` to avoid exposing the internal accelerator hierarchy.
+
+| Module | Generic Cells | Share |
+|---|---:|---:|
+| Private NTT/INTT Acc | 66,169 | 46.74% |
+| Input Buffer | 35,797 | 25.29% |
+| Output Buffer | 37,546 | 26.52% |
+| AXI Read Loader | 644 | 0.45% |
+| AXI Write Writer | 484 | 0.34% |
+| NTT Acc Control Top | 916 | 0.65% |
+| **Total** | **141,556** | **100.00%** |
+
+**Input + Output Buffers: 73,343 generic cells (51.81% of the full design).**
+
+The input and output buffers therefore form the largest logic-cost component in V1, motivating the banked-buffer redesign in V2.
+
+### Original Yosys Results
+
+V1 input/output buffer synthesis statistics:
+
+![V1 Input and Output Buffer Yosys statistics](V1_IO_Buffer_cells.png)
+
+Full-design generic cell count:
+
+![V1 total Yosys generic cell count](V1_Total_cells.png)
 
 ## V2 Plan
 
