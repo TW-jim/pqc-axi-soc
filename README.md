@@ -1,25 +1,33 @@
 # PQC AXI SoC
 
-An AXI-integrated post-quantum cryptography accelerator project built around an NTT/INTT hardware core.
+An AXI-integrated post-quantum cryptography accelerator project targeting compile-time ML-DSA (Dilithium) and ML-KEM (Kyber) NTT/INTT variants within a shared SoC-style integration framework.
 
-The project focuses on SoC-style integration, RTL verification, ASIC implementation, and architecture optimization. The original thesis NTT/INTT core is kept private; the public repository contains the AXI/control infrastructure, verification support, implementation configuration, and summarized results.
+The project focuses on AXI-based accelerator integration, RTL verification, ASIC implementation, architecture optimization, and PPA characterization. The Dilithium variant is currently integrated and verified through the complete RTL-to-GDS flow; Kyber integration is planned as the next implementation milestone. The original thesis NTT/INTT RTL is kept private, while the public repository contains the AXI/control infrastructure, verification support, implementation configuration, architecture-level documentation, and summarized results.
+
+## Current Status
+
+- **Dilithium / ML-DSA variant:** integrated, functionally verified, and implemented through RTL-to-GDS
+- **V2 banked-buffer optimization:** completed and compared against the controlled V1 baseline
+- **Fmax characterization:** ongoing; **500 MHz (2.0 ns)** has been verified as timing-clean and DRC-clean after the complete OpenROAD flow
+- **PPA exploration:** ongoing
+- **Kyber / ML-KEM variant:** planned next, reusing the shared AXI/control framework with algorithm-specific data-width and coefficient-ordering adaptation
 
 ## Architecture
 
-The public design includes:
+The public SoC-side design includes:
 
 - AXI4-Lite control/status registers
-- AXI4 burst read loader
-- AXI4 burst write writer
+- AXI4 burst read engine (`AXI_Read_Loader`)
+- AXI4 burst write engine (`AXI_Write_Writer`)
 - Accelerator controller
 - Input/output coefficient buffers
 - Top-level AXI/accelerator integration
 
-The private NTT/INTT accelerator processes four 23-bit coefficients per cycle and is connected through a private adapter.
+The current Dilithium implementation connects a private four-lane, 23-bit NTT/INTT accelerator through a private adapter. The architecture is intended to support a compile-time Kyber variant through the same AXI/control infrastructure, with algorithm-specific coefficient width, data packing, ordering, buffering, and core-adapter logic.
 
 ## Verification
 
-The integrated design was verified with self-checking RTL tests covering:
+The current Dilithium-integrated design was verified with self-checking RTL tests covering:
 
 - NTT and INTT golden-vector checking
 - NTT → INTT round-trip checking
@@ -97,7 +105,7 @@ V2 replaces the original monolithic multi-port coefficient buffers with a banked
 
 The redesign preserves the same logical coefficient storage capacity while reducing the multiplexing and routing logic required to support the accelerator access patterns.
 
-The complete V2 functional regression passed:
+The complete V2 Dilithium functional regression passed:
 
 - Input Buffer standalone verification: 516 checks, 0 errors
 - Output Buffer standalone verification: 260 checks, 0 errors
@@ -121,7 +129,7 @@ The following results use the same Yosys version, synthesis script, and reportin
 
 **Input + Output Buffers: 37,139 generic cells (35.71% of the full design).**
 
-The storage capacity remains unchanged. Both V2 buffers still contain 5,888 storage flip-flops, corresponding to the original 256 × 23-bit coefficient capacity.
+The storage capacity remains unchanged. Both V2 buffers still contain 5,888 storage flip-flops, corresponding to the original 256 × 23-bit coefficient capacity of the current Dilithium implementation.
 
 The reduction therefore comes primarily from the banked architecture reducing multi-port multiplexing and steering logic rather than from reducing the amount of stored data.
 
@@ -203,27 +211,47 @@ while maintaining:
 
 The small reduction in timing slack is acceptable for this controlled comparison because both implementations still close timing with substantial positive margin.
 
-## V2 PPA Optimization Plan
+## V2 PPA / Fmax Characterization
 
-The controlled V1/V2 comparison is now complete.
+The controlled V1/V2 architecture comparison is complete. V2 is now being characterized across tighter clock constraints before the final PPA operating point is selected.
 
-The next phase focuses on implementation-space exploration rather than architectural comparison.
+Verified full-flow results to date:
 
-V2 will be further evaluated using:
+| Clock Period | Target Frequency | Setup WNS | Hold WNS | Final Design Area | Reported Power | DRC | Status |
+|---:|---:|---:|---:|---:|---:|---:|---|
+| 10.0 ns | 100.00 MHz | +6.00561 ns | +0.0513977 ns | 253,512 um² | 34.6 mW | 0 | PASS |
+| 3.0 ns | 333.33 MHz | +0.664582 ns | +0.0411403 ns | 253,488 um² | 105 mW | 0 | PASS |
+| 2.5 ns | 400.00 MHz | +0.382649 ns | +0.0365603 ns | 253,490 um² | 125 mW | 0 | PASS |
+| 2.0 ns | 500.00 MHz | +0.0441963 ns | +0.0531033 ns | 253,962 um² | 156 mW | 0 | PASS |
 
-1. **Clock-period / achievable-frequency characterization**  
-   The clock constraint will be progressively tightened and each candidate will be run through the complete implementation flow.
+At the current verified point, the V2 Dilithium implementation has completed the full OpenROAD flow at **500 MHz (2.0 ns)** with positive setup/hold slack, zero setup/hold TNS, zero detailed-route violations, and zero antenna violations.
+
+This **500 MHz result is the highest verified timing-clean point so far, not yet the final reported Fmax**. Finer clock-period characterization is ongoing to determine the timing boundary.
+
+The remaining PPA exploration includes:
+
+1. **Fmax boundary characterization**  
+   Continue tightening the clock constraint until adjacent timing-clean and failing points establish the implementation boundary.
 
 2. **Core-utilization exploration**  
-   Different utilization targets will be evaluated to study the area, routability, and timing trade-offs.
+   Evaluate utilization targets to study the area, routability, and timing trade-offs.
 
 3. **Placement-density exploration**  
-   Placement density will be varied to evaluate congestion, wirelength, timing, and final implementation quality.
+   Vary placement density to evaluate congestion, wirelength, timing, and final implementation quality.
 
 4. **Final PPA selection**  
-   The best timing-clean and DRC-clean implementation point will be selected based on the area, timing, routing, and power trade-offs.
+   Retain both the maximum timing-clean implementation point and a balanced PPA operating point based on timing, area, routing, and reported power.
 
-The 10 ns controlled result is retained as the reference baseline and is not treated as the maximum achievable operating frequency.
+The 10 ns controlled result remains the V1/V2 architecture-comparison baseline and is not treated as the maximum achievable operating frequency.
+
+## Next Milestones
+
+- Complete Dilithium Fmax characterization
+- Complete utilization / placement-density PPA exploration
+- Select final Fmax and balanced-PPA implementation points
+- Integrate the **Kyber / ML-KEM** compile-time variant using the shared AXI/control infrastructure
+- Add Kyber-specific coefficient width, packing, ordering, buffering, and core-adapter logic
+- Run Kyber functional verification and ASIC implementation analysis
 
 ## Repository Notes
 
@@ -238,9 +266,12 @@ The following are intentionally kept private:
 
 `asic/orfs/v1_baseline/Config.public.mk` documents the V1 OpenROAD configuration, but it is not standalone runnable without a user-supplied accelerator core and integration wrapper.
 
+The public repository is intended to demonstrate the SoC integration methodology, verification strategy, architecture optimization process, reproducible implementation setup, and summarized PPA results without publishing the private thesis accelerator implementation.
+
 ## Tools
 
 - Verilog
+- cocotb
 - Verilator
 - Yosys
 - OpenROAD Flow Scripts
