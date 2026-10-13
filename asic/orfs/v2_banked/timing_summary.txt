@@ -1,0 +1,93 @@
+PQC AXI SoC - V2 Banked Buffer
+Controlled Physical-Design Summary
+===================================
+
+Platform
+--------
+Technology / Platform : Nangate45
+Clock                  : ACLK
+Clock Period           : 10.000 ns
+Target Frequency       : 100 MHz
+
+This run is the controlled V2 implementation used for comparison
+with the V1 baseline. The technology, clock constraint, target
+core utilization, placement density, and OpenROAD flow settings
+were kept consistent with V1.
+
+
+Synthesis
+---------
+Generic Cells          : 103,988
+Mapped Area             : 248,113.894 um^2
+
+
+Physical Implementation
+-----------------------
+Final Design Area       : 253,512 um^2
+Final Utilization       : 31%
+
+Routed Wirelength       : 1,723,531 um
+Via Count               : 760,944
+
+Detailed-route Violations : 0
+Antenna Net Violations    : 0
+Antenna Pin Violations    : 0
+
+
+Final Timing
+------------
+Setup Worst Slack       : +6.00561 ns
+Setup TNS               : 0 ns
+
+Hold Worst Slack        : +0.0513977 ns
+Hold TNS                : 0 ns
+
+Setup Clock Skew        : 0.0578383 ns
+Hold Clock Skew         : 0.0578383 ns
+
+Timing Status           : PASS
+
+
+Power / IR-Drop Estimate
+------------------------
+Reported Total Power    : 34.6 mW
+
+VDD Average IR Drop     : 0.325641 mV
+VDD Worst IR Drop       : 0.762409 mV
+
+VSS Average IR Drop     : 0.319456 mV
+VSS Worst IR Drop       : 0.705952 mV
+
+Power values are OpenROAD flow estimates under the current
+implementation assumptions and are not silicon measurements.
+
+
+Flow Completion
+---------------
+RTL
+ -> Synthesis
+ -> Floorplan
+ -> Placement
+ -> CTS
+ -> Routing
+ -> RC Extraction
+ -> Final GDS
+
+Final GDS               : Generated locally
+
+Physical implementation artifacts such as ODB, DEF, GDS, SPEF,
+SDF, synthesized private netlists, and raw reports containing
+private hierarchy information are intentionally not published.
+
+
+Interpretation
+--------------
+The V2 banked-buffer implementation closes setup and hold timing
+at the controlled 100 MHz target with zero detailed-route and
+antenna violations.
+
+This 10 ns run is a controlled V1/V2 comparison point and is not
+claimed as the maximum achievable operating frequency.
+
+Further V2 PPA exploration will evaluate tighter clock periods,
+core utilization, and placement density.

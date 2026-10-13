@@ -1,0 +1,23 @@
+category,metric,value,unit,notes
+constraint,clock_period,10.0,ns,ACLK
+constraint,target_frequency,100,MHz,controlled V1-V2 comparison
+synthesis,generic_cells_same_flow,103988,cells,Yosys 0.68 controlled comparison
+synthesis,mapped_area,248113.894,um^2,Nangate45 mapped area
+implementation,final_design_area,253512,um^2,post-route
+implementation,final_utilization,31,percent,
+routing,wirelength,1723531,um,final detailed route
+routing,vias,760944,count,final detailed route
+routing,drc_violations,0,count,
+routing,antenna_net_violations,0,count,
+routing,antenna_pin_violations,0,count,
+timing,setup_worst_slack,6.00561,ns,final post-route
+timing,setup_tns,0,ns,
+timing,hold_worst_slack,0.0513977,ns,final post-route
+timing,hold_tns,0,ns,
+timing,clock_skew,0.0578383,ns,
+power,reported_total_power,34.6,mW,OpenROAD estimate under current flow assumptions
+ir_drop,vdd_average_drop,0.325641,mV,
+ir_drop,vdd_worst_drop,0.762409,mV,
+ir_drop,vss_average_drop,0.319456,mV,
+ir_drop,vss_worst_drop,0.705952,mV,
+flow,final_gds_generated,yes,,kept private
