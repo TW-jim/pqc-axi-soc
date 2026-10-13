@@ -1,0 +1,31 @@
+category,metric,value,unit,notes
+constraint,clock_period,10.0,ns,ACLK
+constraint,target_frequency,100,MHz,baseline target
+synthesis,generic_cells,141556,cells,Yosys generic synthesis
+synthesis,mapped_area,269731,um^2,Nangate45 mapped
+floorplan,core_area,897281.84,um^2,
+floorplan,effective_utilization,30.1,percent,
+placement,design_area,266110,um^2,
+placement,utilization,29.7,percent,
+placement,violations,0,count,
+cts,clock_buffers,4614,count,
+cts,dummy_loads,2846,count,
+cts,design_area,274359,um^2,
+routing,design_area,274408,um^2,
+routing,utilization,31,percent,
+routing,wirelength,2079691,um,
+routing,vias,886097,count,
+routing,drc_violations,0,count,
+routing,antenna_net_violations,0,count,
+routing,antenna_pin_violations,0,count,
+timing,setup_worst_slack,6.18018,ns,final RC-extracted report
+timing,setup_tns,0,ns,
+timing,hold_worst_slack,0.0566224,ns,final RC-extracted report
+timing,hold_tns,0,ns,
+timing,setup_violation_count,0,count,
+timing,hold_violation_count,0,count,
+timing,clock_skew,0.0525211,ns,
+power,reported_total_power,35.7,mW,OpenROAD flow estimate
+ir_drop,vdd_worst_drop,1.12,mV,0.10 percent
+ir_drop,vss_worst_drop,0.661,mV,0.06 percent
+flow,final_gds_generated,yes,,kept private

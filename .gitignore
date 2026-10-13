@@ -24,11 +24,30 @@ results/
 
 # Editor
 .vscode/
+.DS_Store
 
 # Thesis and related
 rtl/private
 tb/private
+scripts/
 
 # Generated NTT / INTT regression outputs
 verilog_ntt_out_new.mem
 verilog_intt_out_new.mem
+
+# Yosys / ASIC / synthesis generated files
+build/
+*.odb
+*.def
+*.gds
+*.gdsii
+*.spef
+*.sdf
+*_synth.v
+*_mapped.v
+*_route.v
+*_final.v
+*.json
+
+# ORFS configuration (Will ublish Config.public.mk instead due to private IP)
+asic/orfs/**/Config.mk
