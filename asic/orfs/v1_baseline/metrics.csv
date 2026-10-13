@@ -1,7 +1,7 @@
 category,metric,value,unit,notes
 constraint,clock_period,10.0,ns,ACLK
 constraint,target_frequency,100,MHz,baseline target
-synthesis,generic_cells,141556,cells,Yosys generic synthesis
+synthesis,generic_cells,159852,cells,Yosys generic synthesis
 synthesis,mapped_area,269731,um^2,Nangate45 mapped
 floorplan,core_area,897281.84,um^2,
 floorplan,effective_utilization,30.1,percent,
