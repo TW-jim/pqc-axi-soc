@@ -272,7 +272,7 @@ The following are intentionally kept private:
 
 Public results are limited to sanitized summaries, reproducibility-oriented public configuration, and non-sensitive implementation metrics.
 
-`asic/orfs/v1_baseline/Config.public.mk` documents the V1 OpenROAD configuration, but it is not standalone runnable without a user-supplied accelerator core and integration wrapper.
+`asic/orfs/v1_baseline/Config.Public.mk` documents the V1 OpenROAD configuration, but it is not standalone runnable without a user-supplied accelerator core and integration wrapper.
 
 ## Tools
 
