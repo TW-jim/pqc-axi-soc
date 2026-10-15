@@ -1,0 +1,17 @@
+sweep_type,variant,clock_ns,frequency_mhz,core_util_target_pct,placement_density,core_area_um2,final_util_pct,final_design_area_um2,setup_wns_ns,setup_tns_ns,hold_wns_ns,hold_tns_ns,wirelength_um,vias,reported_power_mw,vdd_avg_ir_drop_mv,vdd_worst_ir_drop_mv,vss_avg_ir_drop_mv,vss_worst_ir_drop_mv,drc_violations,antenna_violations,status,notes
+clock,controlled_v2_10ns,10.0,100.0,30,0.6,,31.0,253512,6.00561,0.0,0.0513977,0.0,1723531,760944,34.6,,,,,0,0,PASS,Controlled V2 reference used for V1/V2 comparison.
+clock,ppa_clock_3ns,3.0,333.33,30,0.6,,30.6866,253488,0.664582,0.0,0.0411403,0.0,1732944,761993,105,,,,,0,0,PASS,Clock-period sweep point.
+clock,ppa_clock_2p5ns,2.5,400.0,30,0.6,,30.6869,253490,0.382649,0.0,0.0365603,0.0,1727753,761578,125,,,,,0,0,PASS,Clock-period sweep point.
+clock,ppa_clock_2ns,2.0,500.0,30,0.6,826053.69,30.7441,253962,0.0441963,0.0,0.0531033,0.0,1735654,760338,156,,,,,0,0,PASS,Selected operating frequency for density/PPA exploration.
+clock,ppa_clock_1p95ns,1.95,512.82,30,0.6,,30.748,253995,0.0577075,0.0,0.0523754,0.0,1742229,762114,159,,,,,0,0,PASS,Clock-period sweep point.
+clock,ppa_clock_1p90ns,1.9,526.32,30,0.6,,30.8019,254440,0.0494218,0.0,0.0487441,0.0,1744990,763895,164,,,,,0,0,PASS,Clock-period sweep point.
+clock,ppa_clock_1p85ns,1.85,540.54,30,0.6,,,254847,0.00553357,0.0,0.0427793,0.0,,,168,,,,,0,0,PASS,Highest verified timing-clean point in the characterized flow.
+clock,ppa_clock_1p80ns,1.8,555.56,30,0.6,,,254866,-0.0131091,-0.0296819,0.0451487,0.0,,,173,,,,,0,0,FAIL,Nearest tested point above the highest timing-clean frequency; setup violation.
+clock,ppa_clock_1p70ns,1.7,588.24,30,0.6,,,255028,-0.0997553,-1.66353,0.0432404,0.0,,,183,,,,,0,0,FAIL,Higher-frequency stress point; setup violation.
+density,ppa_clock_2ns,2.0,500.0,30,0.6,826053.69,30.7441,253962,0.0441963,0.0,0.0531033,0.0,1735654,760338,156,1.45,4.14,1.43,,0,0,PASS,30%-utilization reference at 500 MHz.
+density,ppa_util40_2ns,2.0,500.0,40,0.6,618392.544,41.0069,253584,0.0782529,0.0,0.0525346,0.0,1703904,758282,155,1.55,4.19,1.52,2.86,0,0,PASS,Controlled utilization sweep; placement density held at 0.60.
+density,ppa_util50_2ns,2.0,500.0,50,0.6,495003.124,51.1416,253153,0.0700321,0.0,0.0512988,0.0,1721619,755940,155,1.66,4.34,1.6,3.1,0,0,PASS,Controlled utilization sweep; placement density held at 0.60.
+density,ppa_util60_2ns,2.0,500.0,60,0.6,412265.952,61.3418,252891,0.136552,0.0,0.0573688,0.0,1652864,757314,154,2.03,5.08,1.76,3.11,0,0,PASS,Controlled utilization sweep; placement density held at 0.60.
+density,ppa_util70_2ns,2.0,500.0,70,0.7,353239.488,71.4455,252374,0.175961,0.0,0.0532812,0.0,1580923,757476,152,2.04,4.69,2.06,4.63,0,0,PASS,Balanced high-density candidate; both core utilization and placement density increased.
+density,ppa_util80_2ns,2.0,500.0,80,0.8,309413.86,81.3979,251856,0.0680495,0.0,0.0525184,0.0,1502844,757394,150,2.49,8.06,2.38,6.72,0,0,PASS,Highest-density timing-clean point found; selected high-density/best-PPA candidate.
+density,ppa_util85_2ns,2.0,500.0,85,0.85,291151.63,86.4589,251726,-0.00318501,-0.00318501,0.0586644,0.0,1493338,763053,150,2.41,5.39,2.5,7.3,0,0,FAIL,Density-limit stress point; setup timing fails.
