@@ -17,18 +17,19 @@ results.xml
 # Build
 build/
 
-# OpenROAD generated files
+# OpenROAD generated filesS
 logs/
 reports/
 results/
 
-# Editor
+# EditorS
 .vscode/
 .DS_Store
 
 # Thesis and related
 rtl/private
 tb/private
+asic/**/private/*.xlsx
 scripts/
 
 # Generated NTT / INTT regression outputs
