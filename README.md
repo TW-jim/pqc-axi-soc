@@ -1,33 +1,39 @@
 # PQC AXI SoC
 
-An AXI-integrated post-quantum cryptography accelerator project targeting compile-time ML-DSA (Dilithium) and ML-KEM (Kyber) NTT/INTT variants within a shared SoC-style integration framework.
+An AXI-integrated post-quantum cryptography accelerator project built around an NTT/INTT hardware core.
 
-The project focuses on AXI-based accelerator integration, RTL verification, ASIC implementation, architecture optimization, and PPA characterization. The Dilithium variant is currently integrated and verified through the complete RTL-to-GDS flow; Kyber integration is planned as the next implementation milestone. The original thesis NTT/INTT RTL is kept private, while the public repository contains the AXI/control infrastructure, verification support, implementation configuration, architecture-level documentation, and summarized results.
+The long-term goal is to provide a shared SoC/AXI integration framework with compile-time variants for **ML-DSA (Dilithium)** and **ML-KEM (Kyber)** NTT/INTT accelerators. The current implementation has completed the **Dilithium variant** through functional verification, architecture optimization, and RTL-to-GDS implementation. Kyber integration is the next implementation milestone.
+
+The project focuses on SoC-style integration, self-checking RTL verification, ASIC implementation, and PPA design-space exploration. The original thesis NTT/INTT core is kept private; the public repository contains the AXI/control infrastructure, verification support, public implementation configuration, and summarized results.
 
 ## Current Status
 
-- **Dilithium / ML-DSA variant:** integrated, functionally verified, and implemented through RTL-to-GDS
-- **V2 banked-buffer optimization:** completed and compared against the controlled V1 baseline
-- **Fmax characterization:** ongoing; **500 MHz (2.0 ns)** has been verified as timing-clean and DRC-clean after the complete OpenROAD flow
-- **PPA exploration:** ongoing
-- **Kyber / ML-KEM variant:** planned next, reusing the shared AXI/control framework with algorithm-specific data-width and coefficient-ordering adaptation
+- Dilithium NTT/INTT accelerator integrated with AXI4-Lite control and AXI4 data movement
+- Self-checking RTL verification completed for the integrated Dilithium design
+- V2 banked-buffer architecture implemented and verified
+- Complete Yosys + OpenROAD RTL-to-GDS flow completed on Nangate45
+- Clock-period characterization completed: **540.54 MHz timing-clean**, while **555.56 MHz fails setup timing**
+- 500 MHz physical-design exploration completed through an **80% timing-clean high-density point**; the 85% stress point fails setup timing
+- Kyber / ML-KEM integration is planned as the next major milestone
 
 ## Architecture
 
-The public SoC-side design includes:
+The public design includes:
 
 - AXI4-Lite control/status registers
-- AXI4 burst read engine (`AXI_Read_Loader`)
-- AXI4 burst write engine (`AXI_Write_Writer`)
+- AXI4 burst read loader
+- AXI4 burst write engine
 - Accelerator controller
 - Input/output coefficient buffers
 - Top-level AXI/accelerator integration
 
-The current Dilithium implementation connects a private four-lane, 23-bit NTT/INTT accelerator through a private adapter. The architecture is intended to support a compile-time Kyber variant through the same AXI/control infrastructure, with algorithm-specific coefficient width, data packing, ordering, buffering, and core-adapter logic.
+The current private Dilithium NTT/INTT accelerator processes four 23-bit coefficients per cycle and is connected through a private adapter.
+
+The planned Kyber variant will reuse the shared AXI/control infrastructure while adapting coefficient width, packing/order behavior, buffering, and the private core adapter for the 12-bit ML-KEM data path.
 
 ## Verification
 
-The current Dilithium-integrated design was verified with self-checking RTL tests covering:
+The integrated Dilithium design was verified with self-checking RTL tests covering:
 
 - NTT and INTT golden-vector checking
 - NTT → INTT round-trip checking
@@ -105,7 +111,7 @@ V2 replaces the original monolithic multi-port coefficient buffers with a banked
 
 The redesign preserves the same logical coefficient storage capacity while reducing the multiplexing and routing logic required to support the accelerator access patterns.
 
-The complete V2 Dilithium functional regression passed:
+The complete V2 functional regression passed:
 
 - Input Buffer standalone verification: 516 checks, 0 errors
 - Output Buffer standalone verification: 260 checks, 0 errors
@@ -129,7 +135,7 @@ The following results use the same Yosys version, synthesis script, and reportin
 
 **Input + Output Buffers: 37,139 generic cells (35.71% of the full design).**
 
-The storage capacity remains unchanged. Both V2 buffers still contain 5,888 storage flip-flops, corresponding to the original 256 × 23-bit coefficient capacity of the current Dilithium implementation.
+The storage capacity remains unchanged. Both V2 buffers still contain 5,888 storage flip-flops, corresponding to the original 256 × 23-bit coefficient capacity.
 
 The reduction therefore comes primarily from the banked architecture reducing multi-port multiplexing and steering logic rather than from reducing the amount of stored data.
 
@@ -167,7 +173,7 @@ This confirms that the original bottleneck was primarily caused by the large mul
 
 ## Controlled V1 vs V2 Physical Comparison
 
-V2 was then implemented using the same controlled physical-design conditions as V1:
+V2 was implemented using the same controlled physical-design conditions as V1:
 
 - Nangate45 standard-cell platform
 - 10 ns clock period
@@ -193,8 +199,6 @@ V2 was then implemented using the same controlled physical-design conditions as 
 | Reported Power | 35.7 mW | 34.6 mW | **-3.08%** |
 | Final GDS | Generated locally | Generated locally | PASS |
 
-The V2 banked-buffer architecture therefore provides measurable physical-design improvements in addition to the generic synthesis reduction.
-
 At the same 100 MHz implementation target, V2 achieves:
 
 - **7.61% lower final design area**
@@ -202,56 +206,58 @@ At the same 100 MHz implementation target, V2 achieves:
 - **14.12% fewer vias**
 - **3.08% lower reported power**
 
-while maintaining:
+while maintaining zero setup/hold TNS, zero detailed-route violations, and zero antenna violations.
 
-- zero setup TNS
-- zero hold TNS
-- zero detailed-route violations
-- zero antenna violations
+## V2 Frequency Characterization
 
-The small reduction in timing slack is acceptable for this controlled comparison because both implementations still close timing with substantial positive margin.
+Clock-period characterization was performed with the RTL and physical-flow settings held fixed apart from the clock constraint.
 
-## V2 PPA / Fmax Characterization
+| Clock Period | Frequency | Setup WNS | Hold WNS | Status |
+|---:|---:|---:|---:|---|
+| 2.50 ns | 400.00 MHz | +0.382649 ns | +0.036560 ns | PASS |
+| 2.00 ns | 500.00 MHz | +0.044196 ns | +0.053103 ns | PASS |
+| 1.95 ns | 512.82 MHz | +0.057708 ns | +0.052375 ns | PASS |
+| 1.90 ns | 526.32 MHz | +0.049422 ns | +0.048744 ns | PASS |
+| **1.85 ns** | **540.54 MHz** | **+0.005534 ns** | **+0.042779 ns** | **PASS** |
+| 1.80 ns | 555.56 MHz | -0.013109 ns | +0.045149 ns | FAIL |
+| 1.70 ns | 588.24 MHz | -0.099755 ns | +0.043240 ns | FAIL |
 
-The controlled V1/V2 architecture comparison is complete. V2 is now being characterized across tighter clock constraints before the final PPA operating point is selected.
+The **maximum timing-clean frequency observed in the characterized OpenROAD/Nangate45 flow is 540.54 MHz** at a 1.85 ns clock period.
 
-Verified full-flow results to date:
+The nearest tested higher-frequency point, 555.56 MHz at 1.80 ns, fails setup timing. This value is therefore reported as an implementation-flow characterization result rather than a measured silicon Fmax.
 
-| Clock Period | Target Frequency | Setup WNS | Hold WNS | Final Design Area | Reported Power | DRC | Status |
+## V2 500 MHz Physical-Design Exploration
+
+A 2.0 ns / 500 MHz operating point was selected for physical-design exploration because it provides useful performance while retaining timing margin for floorplan-density trade-offs.
+
+The 30%-60% points form a controlled core-utilization sweep with placement density fixed at 0.60. The 70%-85% points are high-density candidates where placement density is increased together with core utilization; they should therefore be interpreted as implementation candidates rather than a single-variable controlled sweep.
+
+| Core Util. | Place Density | Core Area | Final Design Area | Setup WNS | Wirelength | Reported Power | Status |
 |---:|---:|---:|---:|---:|---:|---:|---|
-| 10.0 ns | 100.00 MHz | +6.00561 ns | +0.0513977 ns | 253,512 um² | 34.6 mW | 0 | PASS |
-| 3.0 ns | 333.33 MHz | +0.664582 ns | +0.0411403 ns | 253,488 um² | 105 mW | 0 | PASS |
-| 2.5 ns | 400.00 MHz | +0.382649 ns | +0.0365603 ns | 253,490 um² | 125 mW | 0 | PASS |
-| 2.0 ns | 500.00 MHz | +0.0441963 ns | +0.0531033 ns | 253,962 um² | 156 mW | 0 | PASS |
+| 30% | 0.60 | 826,053.690 um² | 253,962 um² | +0.044196 ns | 1,735,654 um | 156 mW | PASS |
+| 40% | 0.60 | 618,392.544 um² | 253,584 um² | +0.078253 ns | 1,703,904 um | 155 mW | PASS |
+| 50% | 0.60 | 495,003.124 um² | 253,153 um² | +0.070032 ns | 1,721,619 um | 155 mW | PASS |
+| 60% | 0.60 | 412,265.952 um² | 252,891 um² | +0.136552 ns | 1,652,864 um | 154 mW | PASS |
+| 70% | 0.70 | 353,239.488 um² | 252,374 um² | **+0.175961 ns** | 1,580,923 um | 152 mW | PASS |
+| **80%** | **0.80** | **309,413.860 um²** | **251,856 um²** | **+0.068050 ns** | **1,502,844 um** | **150 mW** | **PASS** |
+| 85% | 0.85 | 291,151.630 um² | 251,726 um² | -0.003185 ns | 1,493,338 um | 150 mW | FAIL |
 
-At the current verified point, the V2 Dilithium implementation has completed the full OpenROAD flow at **500 MHz (2.0 ns)** with positive setup/hold slack, zero setup/hold TNS, zero detailed-route violations, and zero antenna violations.
+The 80% / 0.80 implementation is the **highest-density timing-clean point found in the sweep**. Relative to the 30% / 0.60 500 MHz reference, it achieves:
 
-This **500 MHz result is the highest verified timing-clean point so far, not yet the final reported Fmax**. Finer clock-period characterization is ongoing to determine the timing boundary.
+- **62.54% smaller core footprint**
+- **13.41% lower routed wirelength**
+- **3.85% lower reported power**
+- **0.83% lower final design-cell area**
 
-The remaining PPA exploration includes:
+while maintaining positive setup/hold slack, zero detailed-route violations, and zero antenna violations.
 
-1. **Fmax boundary characterization**  
-   Continue tightening the clock constraint until adjacent timing-clean and failing points establish the implementation boundary.
+The 70% / 0.70 point is retained as a more timing-balanced implementation candidate because it provides substantially larger setup margin (+0.175961 ns) while still reducing core footprint, wirelength, and reported power compared with the 30% reference.
 
-2. **Core-utilization exploration**  
-   Evaluate utilization targets to study the area, routability, and timing trade-offs.
+The 85% / 0.85 stress point is DRC-clean but fails setup timing by 3.185 ps, identifying the density boundary for this 500 MHz exploration.
 
-3. **Placement-density exploration**  
-   Vary placement density to evaluate congestion, wirelength, timing, and final implementation quality.
+`Core Area` and `Final Design Area` describe different quantities: core area is the physical placement footprint, whereas final design area is the summed area of placed design instances/cells. Increasing utilization primarily compresses the former; it does not remove the RTL logic itself.
 
-4. **Final PPA selection**  
-   Retain both the maximum timing-clean implementation point and a balanced PPA operating point based on timing, area, routing, and reported power.
-
-The 10 ns controlled result remains the V1/V2 architecture-comparison baseline and is not treated as the maximum achievable operating frequency.
-
-## Next Milestones
-
-- Complete Dilithium Fmax characterization
-- Complete utilization / placement-density PPA exploration
-- Select final Fmax and balanced-PPA implementation points
-- Integrate the **Kyber / ML-KEM** compile-time variant using the shared AXI/control infrastructure
-- Add Kyber-specific coefficient width, packing, ordering, buffering, and core-adapter logic
-- Run Kyber functional verification and ASIC implementation analysis
+Reported power values are OpenROAD-flow estimates and are used primarily for relative comparison under the same analysis assumptions. They are not silicon measurements.
 
 ## Repository Notes
 
@@ -264,14 +270,13 @@ The following are intentionally kept private:
 - ODB / DEF / GDS / SPEF / SDF artifacts
 - Raw reports containing private hierarchy information
 
-`asic/orfs/v1_baseline/Config.public.mk` documents the V1 OpenROAD configuration, but it is not standalone runnable without a user-supplied accelerator core and integration wrapper.
+Public results are limited to sanitized summaries, reproducibility-oriented public configuration, and non-sensitive implementation metrics.
 
-The public repository is intended to demonstrate the SoC integration methodology, verification strategy, architecture optimization process, reproducible implementation setup, and summarized PPA results without publishing the private thesis accelerator implementation.
+`asic/orfs/v1_baseline/Config.public.mk` documents the V1 OpenROAD configuration, but it is not standalone runnable without a user-supplied accelerator core and integration wrapper.
 
 ## Tools
 
 - Verilog
-- cocotb
 - Verilator
 - Yosys
 - OpenROAD Flow Scripts
