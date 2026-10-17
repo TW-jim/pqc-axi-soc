@@ -1,0 +1,28 @@
+category,metric,value,unit,notes
+constraint,clock_period,2.0,ns,ACLK
+constraint,target_frequency,500,MHz,fixed physical setting inherited from Dilithium PPA exploration
+constraint,core_utilization_target,80,percent,inherited from Dilithium high-density/best-PPA candidate
+constraint,placement_density,0.80,,inherited from Dilithium high-density/best-PPA candidate
+synthesis,mapped_cells,53540,cells,Nangate45 mapped standard cells
+synthesis,mapped_area,127960.896,um^2,Nangate45 mapped area
+synthesis,sequential_area,64637.734,um^2,mapped sequential-cell area
+synthesis,combinational_area,63323.162,um^2,mapped combinational area
+implementation,core_area,159504.24,um^2,floorplan core area
+implementation,final_design_area,130325,um^2,post-route
+implementation,final_utilization,81.706,percent,
+routing,wirelength,678210,um,final detailed route
+routing,vias,379835,count,final detailed route
+routing,drc_violations,0,count,
+routing,antenna_net_violations,0,count,
+routing,antenna_pin_violations,0,count,
+timing,setup_worst_slack,0.111675,ns,final post-route
+timing,setup_tns,0,ns,
+timing,hold_worst_slack,0.0720437,ns,final post-route
+timing,hold_tns,0,ns,
+timing,clock_skew,0.0174462,ns,
+power,reported_total_power,80.9494,mW,OpenROAD estimate under current flow assumptions
+ir_drop,vdd_average_drop,2.59925,mV,
+ir_drop,vdd_worst_drop,5.62889,mV,
+ir_drop,vss_average_drop,2.17915,mV,
+ir_drop,vss_worst_drop,3.70592,mV,
+flow,final_gds_generated,yes,,kept private

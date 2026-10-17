@@ -2,19 +2,21 @@
 
 An AXI-integrated post-quantum cryptography accelerator project built around an NTT/INTT hardware core.
 
-The long-term goal is to provide a shared SoC/AXI integration framework with compile-time variants for **ML-DSA (Dilithium)** and **ML-KEM (Kyber)** NTT/INTT accelerators. The current implementation has completed the **Dilithium variant** through functional verification, architecture optimization, and RTL-to-GDS implementation. Kyber integration is the next implementation milestone.
+The project provides a shared SoC/AXI integration framework with compile-time variants for **ML-DSA (Dilithium)** and **ML-KEM (Kyber)** NTT/INTT accelerators. Both variants have now been integrated and verified through RTL-to-GDS implementation. Dilithium is used for the main architecture/PPA exploration, while Kyber reuses the same shared AXI/control infrastructure to demonstrate compile-time portability to a 12-bit ML-KEM data path.
 
 The project focuses on SoC-style integration, self-checking RTL verification, ASIC implementation, and PPA design-space exploration. The original thesis NTT/INTT core is kept private; the public repository contains the AXI/control infrastructure, verification support, public implementation configuration, and summarized results.
 
 ## Current Status
 
-- Dilithium NTT/INTT accelerator integrated with AXI4-Lite control and AXI4 data movement
-- Self-checking RTL verification completed for the integrated Dilithium design
+- Shared AXI4-Lite control and AXI4 burst data movement implemented for both compile-time variants
+- Dilithium / ML-DSA integrated, self-checking verified, architecture-optimized, and implemented through RTL-to-GDS
 - V2 banked-buffer architecture implemented and verified
-- Complete Yosys + OpenROAD RTL-to-GDS flow completed on Nangate45
-- Clock-period characterization completed: **540.54 MHz timing-clean**, while **555.56 MHz fails setup timing**
-- 500 MHz physical-design exploration completed through an **80% timing-clean high-density point**; the 85% stress point fails setup timing
-- Kyber / ML-KEM integration is planned as the next major milestone
+- Dilithium clock-period characterization completed: **540.54 MHz timing-clean**, while **555.56 MHz fails setup timing**
+- Dilithium 500 MHz physical-design exploration completed through an **80% / 0.80 timing-clean high-density point**; the 85% / 0.85 stress point fails setup timing
+- Kyber / ML-KEM integrated with the shared AXI/control infrastructure and 12-bit coefficient data path
+- Kyber full AXI verification completed with golden-vector, round-trip, randomized backpressure, protocol-stability, and multi-transaction tests
+- Kyber RTL-to-GDS implementation completed on Nangate45 at the fixed **80% core-utilization / 0.80 placement-density** setting inherited from the Dilithium PPA exploration
+- Under that fixed setting, Kyber is timing-clean through **571.43 MHz (1.75 ns)**, while **588.24 MHz (1.70 ns)** fails setup timing
 
 ## Architecture
 
@@ -27,9 +29,11 @@ The public design includes:
 - Input/output coefficient buffers
 - Top-level AXI/accelerator integration
 
-The current private Dilithium NTT/INTT accelerator processes four 23-bit coefficients per cycle and is connected through a private adapter.
+The private NTT/INTT accelerator is selected at compile time. The Dilithium variant processes four 23-bit coefficients per cycle, while the Kyber variant processes four 12-bit coefficients per cycle. Both variants connect to the same public AXI/control infrastructure through private adapters.
 
-The planned Kyber variant will reuse the shared AXI/control infrastructure while adapting coefficient width, packing/order behavior, buffering, and the private core adapter for the 12-bit ML-KEM data path.
+The shared AXI data path remains 32 bits wide. One coefficient is transferred per 32-bit word, with the active coefficient stored in the low-order bits and the unused upper bits zero-filled.
+
+The V2 input buffer retains the same banked-storage organization for both variants. A compile-time bank-selection mapping is used for the Kyber access pattern while preserving the original Dilithium mapping. A controlled Dilithium synthesis regression confirmed that the specialization leaves the Dilithium mapped synthesis netlist unchanged.
 
 ## Verification
 
@@ -40,6 +44,13 @@ The integrated Dilithium design was verified with self-checking RTL tests coveri
 - AXI backpressure
 - Protocol stability during stalls
 - Six consecutive accelerator transactions without a global reset
+
+The integrated Kyber design was verified using the same verification methodology:
+
+- Real-core / real-buffer NTT and INTT regression: **768 checks, 0 errors**
+- Full AXI end-to-end golden-vector and round-trip regression: **768 checks, 0 errors**
+- Randomized AXI backpressure and protocol-stability regression: **781 checks, 0 errors**
+- Six consecutive transactions without global reset: **2,425 checks, 0 errors**
 
 ## V1 ASIC Baseline
 
@@ -259,6 +270,84 @@ The 85% / 0.85 stress point is DRC-clean but fails setup timing by 3.185 ps, ide
 
 Reported power values are OpenROAD-flow estimates and are used primarily for relative comparison under the same analysis assumptions. They are not silicon measurements.
 
+
+## Kyber / ML-KEM Variant
+
+The Kyber variant reuses the public AXI4-Lite registers, AXI burst read/write engines, accelerator controller, and banked coefficient buffers. The private accelerator adapter specializes the shared integration for the 12-bit ML-KEM coefficient path and Kyber-specific NTT/INTT access ordering.
+
+The Kyber physical implementation intentionally uses the **80% core-utilization / 0.80 placement-density** setting selected from the Dilithium 500 MHz PPA exploration. Kyber was not independently density-optimized; the fixed setting is used to evaluate portability, implementation cost, and frequency headroom under the previously selected high-density implementation recipe.
+
+### Kyber 500 MHz Fixed-Setting Baseline
+
+**Technology:** Nangate45  
+**Clock constraint:** 2.0 ns / 500 MHz  
+**Core-utilization target:** 80%  
+**Placement density:** 0.80  
+**Flow:** Yosys + OpenROAD Flow Scripts
+
+| Metric | Kyber |
+|---|---:|
+| Nangate45 mapped cells | 53,540 |
+| Nangate45 mapped area | 127,960.896 um² |
+| Sequential mapped area | 64,637.734 um² |
+| Combinational mapped area | 63,323.162 um² |
+| Core area | 159,504.240 um² |
+| Final design area | 130,325 um² |
+| Final utilization | 81.706% |
+| Setup worst slack | +0.111675 ns |
+| Hold worst slack | +0.072044 ns |
+| Setup / Hold TNS | 0 / 0 |
+| Clock skew | 0.017446 ns |
+| Routed wirelength | 678,210 um |
+| Via count | 379,835 |
+| Detailed-route violations | 0 |
+| Antenna violations | 0 |
+| Reported power | 80.9494 mW |
+| Final GDS | Generated locally |
+
+The complete Kyber flow reached:
+
+**RTL → Synthesis → Floorplan → Placement → CTS → Routing → RC Extraction → Final GDS**
+
+### Fixed-Setting Dilithium vs Kyber Comparison
+
+The table below compares the two compile-time variants at the same **2.0 ns / 500 MHz**, **80% core-utilization**, and **0.80 placement-density** physical setting.
+
+| Metric | Dilithium | Kyber | Kyber Change |
+|---|---:|---:|---:|
+| Mapped Cells | 105,438 | 53,540 | **-49.22%** |
+| Mapped Area | 248,113.894 um² | 127,960.896 um² | **-48.43%** |
+| Core Area | 309,413.860 um² | 159,504.240 um² | **-48.45%** |
+| Final Design Area | 251,856 um² | 130,325 um² | **-48.25%** |
+| Routed Wirelength | 1,502,844 um | 678,210 um | **-54.87%** |
+| Via Count | 757,394 | 379,835 | **-49.85%** |
+| Reported Power | 150 mW | 80.9494 mW | **-46.03%** |
+| Setup Worst Slack | +0.068050 ns | +0.111675 ns | — |
+| Hold Worst Slack | +0.052518 ns | +0.072044 ns | — |
+| Detailed-route Violations | 0 | 0 | PASS |
+| Antenna Violations | 0 | 0 | PASS |
+
+The narrower 12-bit Kyber datapath and lower internal storage requirement substantially reduce the technology-mapped and physical implementation cost while retaining the same shared AXI/control architecture.
+
+### Kyber Fixed-Setting Frequency Characterization
+
+Clock-period characterization was then performed with the **80% / 0.80 physical setting held fixed**, changing only the clock constraint.
+
+| Clock Period | Frequency | Setup WNS | Setup TNS | Hold WNS | Status |
+|---:|---:|---:|---:|---:|---|
+| 2.00 ns | 500.00 MHz | +0.111675 ns | 0 | +0.072044 ns | PASS |
+| 1.80 ns | 555.56 MHz | +0.043978 ns | 0 | +0.071717 ns | PASS |
+| **1.75 ns** | **571.43 MHz** | **+0.022577 ns** | **0** | **+0.066006 ns** | **PASS** |
+| 1.70 ns | 588.24 MHz | -0.004156 ns | -0.007711 ns | +0.067986 ns | FAIL |
+
+At a sweep resolution of 0.05 ns, the **maximum timing-clean frequency observed for Kyber under the fixed inherited 80% / 0.80 setting is 571.43 MHz** at a 1.75 ns clock period.
+
+The nearest tested higher-frequency point, 588.24 MHz at 1.70 ns, is DRC-clean and antenna-clean but fails setup timing by approximately 4.16 ps.
+
+This Kyber frequency result should not be treated as a controlled direct Fmax comparison against the published Dilithium 540.54 MHz characterization, because the Dilithium clock sweep used the earlier 30% core-utilization / 0.60 placement-density condition. The 80% / 0.80 Kyber sweep instead answers a different question: how far the Kyber variant can be pushed while retaining the high-density physical setting selected from the Dilithium PPA exploration.
+
+As with the Dilithium results, these values are implementation-flow characterization results and not measured silicon Fmax.
+
 ## Repository Notes
 
 The following are intentionally kept private:
@@ -272,7 +361,9 @@ The following are intentionally kept private:
 
 Public results are limited to sanitized summaries, reproducibility-oriented public configuration, and non-sensitive implementation metrics.
 
-`asic/orfs/v1_baseline/Config.public.mk` documents the V1 OpenROAD configuration, but it is not standalone runnable without a user-supplied accelerator core and integration wrapper.
+`asic/orfs/v1_baseline/Config.Public.mk` documents the V1 OpenROAD configuration, but it is not standalone runnable without a user-supplied accelerator core and integration wrapper.
+
+Runnable private OpenROAD `Config.mk` files that reference private integration adapters or thesis RTL are intentionally not published. Public constraints and sanitized metric summaries are provided instead so that implementation assumptions and reported results remain documented without exposing the private accelerator hierarchy.
 
 ## Tools
 
