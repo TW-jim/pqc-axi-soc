@@ -30,6 +30,12 @@ module Input_Buffer #(
             Get_Bank = addr[ADDR_WIDTH - 1 : ADDR_WIDTH - 2] ^ addr[1 : 0];
         end
     endfunction
+    function [1 : 0] Get_Bank_Kyber;
+        input [ADDR_WIDTH - 1 : 0] addr;
+        begin
+            Get_Bank_Kyber = addr[ADDR_WIDTH - 1 : ADDR_WIDTH - 2] ^ addr[1 : 0] ^ {1'b0, addr[2]};
+        end
+    endfunction
     function [BANK_ADDR_WIDTH - 1 : 0] Get_Row;
         input [ADDR_WIDTH - 1 : 0] addr;
         begin
@@ -38,7 +44,6 @@ module Input_Buffer #(
     endfunction
     wire [1 : 0] w_bank;
     wire [BANK_ADDR_WIDTH - 1 : 0] w_row;
-    assign w_bank = Get_Bank(W_addr);
     assign w_row  = Get_Row(W_addr);
     always @(posedge ACLK) begin
         if(W_EN) begin
@@ -53,10 +58,22 @@ module Input_Buffer #(
     end
     wire [1 : 0] r_bank_1, r_bank_2, r_bank_3, r_bank_4;
     wire [BANK_ADDR_WIDTH - 1 : 0] r_row_1, r_row_2, r_row_3, r_row_4;
-    assign r_bank_1 = Get_Bank(R_addr_1);
-    assign r_bank_2 = Get_Bank(R_addr_2);
-    assign r_bank_3 = Get_Bank(R_addr_3);
-    assign r_bank_4 = Get_Bank(R_addr_4);
+    generate
+        if(COEFF_WIDTH == 12) begin : Kyber
+            assign w_bank   = Get_Bank_Kyber(W_addr);
+            assign r_bank_1 = Get_Bank_Kyber(R_addr_1);
+            assign r_bank_2 = Get_Bank_Kyber(R_addr_2);
+            assign r_bank_3 = Get_Bank_Kyber(R_addr_3);
+            assign r_bank_4 = Get_Bank_Kyber(R_addr_4);
+        end
+        else begin : Dilithium
+            assign w_bank = Get_Bank(W_addr);
+            assign r_bank_1 = Get_Bank(R_addr_1);
+            assign r_bank_2 = Get_Bank(R_addr_2);
+            assign r_bank_3 = Get_Bank(R_addr_3);
+            assign r_bank_4 = Get_Bank(R_addr_4);
+        end
+    endgenerate
     assign r_row_1 = Get_Row(R_addr_1);
     assign r_row_2 = Get_Row(R_addr_2);
     assign r_row_3 = Get_Row(R_addr_3);
