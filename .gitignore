@@ -29,7 +29,6 @@ results/
 # Thesis and related
 rtl/private
 tb/private
-asic/**/private/*.xlsx
 scripts/
 
 # Generated NTT / INTT regression outputs
@@ -52,3 +51,6 @@ build/
 
 # ORFS configuration (Will ublish Config.public.mk instead due to private IP)
 asic/orfs/**/Config.mk
+
+# PPA sweep
+asic/**/private/*.xlsx

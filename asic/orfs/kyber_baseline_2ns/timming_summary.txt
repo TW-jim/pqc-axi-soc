@@ -1,0 +1,129 @@
+PQC AXI SoC - Kyber / ML-KEM Variant
+Fixed-Setting Physical-Design Baseline
+======================================
+
+Platform
+--------
+Technology / Platform : Nangate45
+Clock                  : ACLK
+Clock Period           : 2.000 ns
+Target Frequency       : 500 MHz
+Core Utilization       : 80%
+Placement Density      : 0.80
+
+This run is the Kyber fixed-setting baseline.
+
+The 80% core-utilization / 0.80 placement-density setting was
+selected previously from the Dilithium 500 MHz PPA exploration
+as the highest-density timing-clean / high-density best-PPA
+candidate. Kyber was not independently density-optimized.
+
+The physical setting is intentionally held fixed to evaluate
+compile-time portability, implementation cost, and frequency
+headroom of the Kyber variant under the previously selected
+implementation recipe.
+
+
+Synthesis
+---------
+Mapped Cells            : 53,540
+Mapped Area             : 127,960.896 um^2
+Sequential Area         : 64,637.734 um^2
+Combinational Area      : 63,323.162 um^2
+
+
+Physical Implementation
+-----------------------
+Core Area               : 159,504.240 um^2
+Final Design Area       : 130,325 um^2
+Final Utilization       : 81.706%
+
+Routed Wirelength       : 678,210 um
+Via Count               : 379,835
+
+Detailed-route Violations : 0
+Antenna Net Violations    : 0
+Antenna Pin Violations    : 0
+
+
+Final Timing
+------------
+Setup Worst Slack       : +0.111675 ns
+Setup TNS               : 0 ns
+
+Hold Worst Slack        : +0.0720437 ns
+Hold TNS                : 0 ns
+
+Setup Clock Skew        : 0.0174462 ns
+Hold Clock Skew         : 0.0174462 ns
+
+Timing Status           : PASS
+
+
+Power / IR-Drop Estimate
+------------------------
+Reported Total Power    : 80.9494 mW
+
+VDD Average IR Drop     : 2.59925 mV
+VDD Worst IR Drop       : 5.62889 mV
+
+VSS Average IR Drop     : 2.17915 mV
+VSS Worst IR Drop       : 3.70592 mV
+
+Power values are OpenROAD flow estimates under the current
+implementation assumptions and are not silicon measurements.
+
+
+Flow Completion
+---------------
+RTL
+ -> Synthesis
+ -> Floorplan
+ -> Placement
+ -> CTS
+ -> Routing
+ -> RC Extraction
+ -> Final GDS
+
+Final GDS               : Generated locally
+
+Physical implementation artifacts such as ODB, DEF, GDS, SPEF,
+SDF, synthesized private netlists, and raw reports containing
+private hierarchy information are intentionally not published.
+
+
+Frequency Characterization
+--------------------------
+The same 80% core-utilization / 0.80 placement-density setting
+was retained while only the clock constraint was changed.
+
+2.00 ns / 500.00 MHz    : PASS, setup WNS +0.111675 ns
+1.80 ns / 555.56 MHz    : PASS, setup WNS +0.043978 ns
+1.75 ns / 571.43 MHz    : PASS, setup WNS +0.0225774 ns
+1.70 ns / 588.24 MHz    : FAIL, setup WNS -0.00415645 ns
+
+At the selected 0.05 ns sweep resolution, the maximum
+timing-clean frequency observed under this fixed physical
+setting is 571.43 MHz at 1.75 ns.
+
+The nearest tested higher-frequency point is 588.24 MHz at
+1.70 ns, which is DRC-clean and antenna-clean but fails setup
+timing by approximately 4.16 ps.
+
+
+Interpretation
+--------------
+The Kyber variant closes setup and hold timing at the fixed
+500 MHz baseline with zero detailed-route and antenna violations.
+
+The narrower 12-bit Kyber datapath and reduced internal storage
+produce substantially lower mapped and physical implementation
+cost than the 23-bit Dilithium variant when both are evaluated
+at the same 2.0 ns / 500 MHz, 80% core-utilization, and 0.80
+placement-density setting.
+
+The 571.43 MHz result is an implementation-flow characterization
+under the inherited high-density setting. It is not a measured
+silicon Fmax and should not be treated as a controlled direct
+Fmax comparison with the published Dilithium clock sweep, which
+used a 30% core-utilization / 0.60 placement-density condition.
