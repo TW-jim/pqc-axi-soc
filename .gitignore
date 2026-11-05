@@ -57,3 +57,7 @@ asic/orfs/**/Config.mk
 
 # PPA sweep
 asic/**/private/*.xlsx
+
+# UVM coverage
+verif/uvm/coverage_data/
+verif/uvm/coverage_report/

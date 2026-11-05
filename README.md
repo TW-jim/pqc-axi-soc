@@ -9,6 +9,7 @@ The project focuses on SoC-style integration, self-checking RTL verification, AS
 ## Current Status
 
 - Shared AXI4-Lite control and AXI4 burst data movement implemented for both compile-time variants
+- UVM-based AXI4-Lite register-block verification added with directed smoke testing, constrained-random stimulus, scoreboard checking, and functional coverage closure
 - Dilithium / ML-DSA integrated, self-checking verified, architecture-optimized, and implemented through RTL-to-GDS
 - V2 banked-buffer architecture implemented and verified
 - Dilithium clock-period characterization completed: **540.54 MHz timing-clean**, while **555.56 MHz fails setup timing**
@@ -37,6 +38,10 @@ The V2 input buffer retains the same banked-storage organization for both varian
 
 ## Verification
 
+Verification is split into two complementary layers: integrated self-checking RTL regression for the full accelerator data path, and a UVM environment focused on the public AXI4-Lite register block.
+
+### Integrated RTL Verification
+
 The integrated Dilithium design was verified with self-checking RTL tests covering:
 
 - NTT and INTT golden-vector checking
@@ -51,6 +56,35 @@ The integrated Kyber design was verified using the same verification methodology
 - Full AXI end-to-end golden-vector and round-trip regression: **768 checks, 0 errors**
 - Randomized AXI backpressure and protocol-stability regression: **781 checks, 0 errors**
 - Six consecutive transactions without global reset: **2,425 checks, 0 errors**
+
+### AXI4-Lite UVM Verification
+
+A SystemVerilog/UVM environment was added for `rtl/bus/NTT_AXIL_Regs.v` and exercised with Verilator 5.052 and Accellera UVM 2020.3.2-vlt. The current environment includes:
+
+- UVM transaction, sequencer, driver, monitor, agent, environment, scoreboard, sequences, tests, and coverage subscriber
+- Directed smoke testing for CONTROL, SRC_ADDR, and DST_ADDR register access
+- Constrained-random read/write traffic across CONTROL, STATUS, SRC_ADDR, and DST_ADDR
+- Random 32-bit write data and non-zero partial `WSTRB` values
+- Randomized AXI-Lite write-channel ordering: AW/W together, AW first, or W first
+- Random inter-channel delay of 0-3 cycles
+- Driver-side handshake timeouts to turn protocol stalls into actionable UVM failures
+- Scoreboard reference modeling for writable registers, read-only STATUS behavior, and byte-enable updates
+
+Three constrained-random seeds were run with **100 transactions per seed (300 total)**. All three regressions completed with **UVM_ERROR = 0** and **UVM_FATAL = 0**.
+
+The first functional-coverage model covers operation, register address, all 15 non-zero `WSTRB` patterns, operation × address, and address × `WSTRB`. Across the three-seed merged regression, the current model reached **100.0% functional coverage (89/89 bins)**.
+
+| Regression | Functional Coverage |
+|---|---:|
+| Directed smoke test | 16.85% |
+| Random seed 1 | 83.15% (74/89) |
+| Random seed 2 | 84.27% (75/89) |
+| Random seed 3 | 86.52% |
+| **Seeds 1-3 merged** | **100.0% (89/89)** |
+
+The 89-bin model consists of 2 operation bins, 4 address bins, 15 write-strobe bins, 8 operation × address cross bins, and 60 address × write-strobe cross bins. AW/W ordering and observed handshake-gap coverage are intentionally not included in this first coverage model yet; they are the next coverage extension.
+
+Detailed coverage-model documentation and reproducibility commands are provided in [`verif/uvm/coverage/README.md`](verif/uvm/coverage/README.md).
 
 ## V1 ASIC Baseline
 
@@ -367,8 +401,10 @@ Runnable private OpenROAD `Config.mk` files that reference private integration a
 
 ## Tools
 
-- Verilog
-- Verilator
+- Verilog / SystemVerilog
+- Accellera UVM 2020.3.2-vlt
+- Verilator 5.052
+- Z3 constraint solver
 - Yosys
 - OpenROAD Flow Scripts
 - Nangate45
