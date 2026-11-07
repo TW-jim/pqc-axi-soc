@@ -14,6 +14,7 @@ class AXIL_Transaction extends uvm_sequence_item;
     rand bit [3:0] strb;
     rand AXIL_WRITE_ORDER_E write_order;
     rand bit [2:0] channel_delay;
+    longint unsigned handshake_gap;
     bit [31:0] rdata;
     bit [1:0] resp;
     `uvm_object_utils(AXIL_Transaction)
@@ -22,8 +23,9 @@ class AXIL_Transaction extends uvm_sequence_item;
     endfunction
     function string convert2string();
         if(op == AXIL_WRITE) begin
-            return $sformatf("WRITE addr=0x%08h data=0x%08h strb=0x%01h order=%0d delay=%0d resp=%0d",
-                    addr, data, strb, write_order, channel_delay, resp);
+            return $sformatf(
+                    "WRITE addr=0x%08h data=0x%08h strb=0x%01h order=%0d delay=%0d gap=%0d resp=%0d",
+                    addr, data, strb, write_order, channel_delay, handshake_gap, resp);
         end
         else begin
             return $sformatf("READ addr=0x%08h rdata=0x%08h resp=%0d", addr, rdata, resp);

@@ -34,32 +34,29 @@ class AXIL_Driver extends uvm_driver #(AXIL_Transaction);
         vif.S_AXI_RREADY = 1'b0;
     endtask
     // AW channel
-    task drive_aw(AXIL_Transaction tr);
+    task drive_aw_now(AXIL_Transaction tr);
         int timeout_count;
-        @(negedge vif.ACLK);
         vif.S_AXI_AWADDR = tr.addr;
         vif.S_AXI_AWVALID = 1'b1;
         timeout_count = 0;
-        // READY is sampled before the rising edge.
         while(!vif.S_AXI_AWREADY) begin
             @(posedge vif.ACLK);
             @(negedge vif.ACLK);
             timeout_count++;
-            if(timeout_count > 100) begin
-                `uvm_fatal("AXIL_DRIVER",
-                    "Timeout waiting for AWREADY")
-            end
+            if(timeout_count > 100) `uvm_fatal("AXIL_DRIVER", "Timeout waiting for AWREADY")
         end
-        // READY is high now, so handshake will occur at the next rising edge.
         @(posedge vif.ACLK);
         `uvm_info("AXIL_DRIVER", "AW handshake completed", UVM_HIGH)
         @(negedge vif.ACLK);
         vif.S_AXI_AWVALID = 1'b0;
     endtask
-    // W channel
-    task drive_w(AXIL_Transaction tr);
-        int timeout_count;
+    task drive_aw(AXIL_Transaction tr);
         @(negedge vif.ACLK);
+        drive_aw_now(tr);
+    endtask
+    // W channel
+    task drive_w_now(AXIL_Transaction tr);
+        int timeout_count;
         vif.S_AXI_WDATA = tr.data;
         vif.S_AXI_WSTRB = tr.strb;
         vif.S_AXI_WVALID = 1'b1;
@@ -75,35 +72,39 @@ class AXIL_Driver extends uvm_driver #(AXIL_Transaction);
         @(negedge vif.ACLK);
         vif.S_AXI_WVALID = 1'b0;
     endtask
+    task drive_w(AXIL_Transaction tr);
+        @(negedge vif.ACLK);
+        drive_w_now(tr);
+    endtask
     // Write transaction
     task drive_write(AXIL_Transaction tr);
         int timeout_count;
         vif.S_AXI_BREADY = 1'b0;
         case(tr.write_order)
-            // AW and W are issued together.
             AXIL_AW_W_SAME: begin
+                @(negedge vif.ACLK);
                 fork
-                    drive_aw(tr);
-                    drive_w(tr);
+                    drive_aw_now(tr);
+                    drive_w_now(tr);
                 join
             end
-            // AW completes first, followed by W.
             AXIL_AW_FIRST: begin
                 drive_aw(tr);
                 repeat(tr.channel_delay) begin
-                    @(posedge vif.ACLK);
+                    @(negedge vif.ACLK);
                 end
-                drive_w(tr);
+                drive_w_now(tr);
             end
-            // W completes first, followed by AW.
             AXIL_W_FIRST: begin
                 drive_w(tr);
                 repeat(tr.channel_delay) begin
-                    @(posedge vif.ACLK);
+                    @(negedge vif.ACLK);
                 end
-                drive_aw(tr);
+                drive_aw_now(tr);
             end
-            default: `uvm_fatal("AXIL_DRIVER", $sformatf("Invalid write_order=%0d", tr.write_order))
+            default: begin
+                `uvm_fatal("AXIL_DRIVER", $sformatf("Invalid write_order=%0d", tr.write_order))
+            end
         endcase
         // B response
         @(negedge vif.ACLK);

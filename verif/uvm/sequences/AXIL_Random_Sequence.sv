@@ -36,7 +36,8 @@ class AXIL_Random_Sequence extends uvm_sequence #(AXIL_Transaction);
                         AXIL_AW_FIRST,
                         AXIL_W_FIRST
                     };
-                    channel_delay inside {[0:3]};
+                    if(write_order == AXIL_AW_W_SAME) channel_delay == 0;
+                    else channel_delay inside {[0:3]};
                 }
             }) begin
                 `uvm_fatal("RANDOM_SEQ", "AXIL_Transaction randomization failed")

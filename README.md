@@ -72,17 +72,24 @@ A SystemVerilog/UVM environment was added for `rtl/bus/NTT_AXIL_Regs.v` and exer
 
 Three constrained-random seeds were run with **100 transactions per seed (300 total)**. All three regressions completed with **UVM_ERROR = 0** and **UVM_FATAL = 0**.
 
-The first functional-coverage model covers operation, register address, all 15 non-zero `WSTRB` patterns, operation × address, and address × `WSTRB`. Across the three-seed merged regression, the current model reached **100.0% functional coverage (89/89 bins)**.
+The current functional-coverage model extends the original register-access coverage with observed AXI-Lite write-channel timing behavior. It covers operation, register address, all 15 non-zero `WSTRB` patterns, operation × address, address × `WSTRB`, observed AW/W ordering, observed AW/W handshake gap, legal write-timing classes, and write ordering × address.
+
+The v2 model contains **118 functional coverage bins**. The three-seed constrained-random regression reached **117/118 bins (99.2%)**. Coverage-hole analysis identified the only remaining bin as **`SRC_ADDR × WSTRB = 4'hA`**. A targeted coverage-closure sequence was then added to exercise that case and verify the resulting byte-enable behavior through register readback. The final merged result reached **100.0% functional coverage (118/118 bins)** with **UVM_ERROR = 0** and **UVM_FATAL = 0**.
 
 | Regression | Functional Coverage |
 |---|---:|
-| Directed smoke test | 16.85% |
-| Random seed 1 | 83.15% (74/89) |
-| Random seed 2 | 84.27% (75/89) |
-| Random seed 3 | 86.52% |
-| **Seeds 1-3 merged** | **100.0% (89/89)** |
+| Random seed 1 | 83.1% (98/118) |
+| Random seed 2 | 83.9% (99/118) |
+| Random seed 3 | 90.7% (107/118) |
+| Seeds 1-3 merged | 99.2% (117/118) |
+| Coverage-closure test | Targeted `SRC_ADDR × WSTRB = 4'hA` |
+| **Final merged** | **100.0% (118/118)** |
 
-The 89-bin model consists of 2 operation bins, 4 address bins, 15 write-strobe bins, 8 operation × address cross bins, and 60 address × write-strobe cross bins. AW/W ordering and observed handshake-gap coverage are intentionally not included in this first coverage model yet; they are the next coverage extension.
+The 118-bin model consists of 2 operation bins, 4 address bins, 15 write-strobe bins, 3 observed write-order bins, 5 observed handshake-gap bins, 9 legal write-timing-class bins, 8 operation × address cross bins, 60 address × write-strobe cross bins, and 12 write-order × address cross bins.
+
+The observed timing model distinguishes AW/W handshakes in the same cycle from AW-first and W-first transactions with one-, two-, three-, and four-or-more-cycle handshake gaps. The UVM driver generates the intended ordering and inter-channel delay, while the monitor independently reconstructs the actual bus-level ordering and handshake gap from observed AXI-Lite handshakes before coverage is sampled.
+
+The directed coverage-closure case writes `SRC_ADDR` with `WSTRB = 4'hA` and performs a readback check so the final coverage point is closed with functional byte-enable verification rather than coverage-only stimulus.
 
 Detailed coverage-model documentation and reproducibility commands are provided in [`verif/uvm/coverage/README.md`](verif/uvm/coverage/README.md).
 
