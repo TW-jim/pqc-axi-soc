@@ -3,8 +3,10 @@
 __pycache__/
 *.pyc
 
-# shell
+# Shell scripts are private by default.
+# The public UVM regression entry point is explicitly version-controlled below.
 *.sh
+!verif/uvm/run_regression.sh
 
 # Verilator
 obj_dir*/
@@ -20,12 +22,12 @@ results.xml
 # Build
 build/
 
-# OpenROAD generated filesS
+# OpenROAD generated files
 logs/
 reports/
 results/
 
-# EditorS
+# Editors / OS
 .vscode/
 .DS_Store
 
@@ -39,7 +41,6 @@ verilog_ntt_out_new.mem
 verilog_intt_out_new.mem
 
 # Yosys / ASIC / synthesis generated files
-build/
 *.odb
 *.def
 *.gds
@@ -52,8 +53,15 @@ build/
 *_final.v
 *.json
 
-# ORFS configuration (Will ublish Config.public.mk instead due to private IP)
+# ORFS configuration
+# Publish Config.Public.mk instead because private Config.mk files may reference private IP.
 asic/orfs/**/Config.mk
 
 # PPA sweep
 asic/**/private/*.xlsx
+
+# UVM generated regression / coverage artifacts
+verif/uvm/coverage_data/
+verif/uvm/coverage_report/
+verif/uvm/regression_logs/
+coverage.dat
