@@ -14,7 +14,14 @@ class AXIL_Transaction extends uvm_sequence_item;
     rand bit [3:0] strb;
     rand AXIL_WRITE_ORDER_E write_order;
     rand bit [2:0] channel_delay;
+    rand bit [2:0] bready_delay;
+    rand bit [2:0] rready_delay;
     longint unsigned handshake_gap;
+    longint unsigned aw_stall_cycles;
+    longint unsigned w_stall_cycles;
+    longint unsigned b_stall_cycles;
+    longint unsigned ar_stall_cycles;
+    longint unsigned r_stall_cycles;
     bit [31:0] rdata;
     bit [1:0] resp;
     `uvm_object_utils(AXIL_Transaction)
@@ -24,11 +31,14 @@ class AXIL_Transaction extends uvm_sequence_item;
     function string convert2string();
         if(op == AXIL_WRITE) begin
             return $sformatf(
-                    "WRITE addr=0x%08h data=0x%08h strb=0x%01h order=%0d delay=%0d gap=%0d resp=%0d",
-                    addr, data, strb, write_order, channel_delay, handshake_gap, resp);
+                "WRITE addr=0x%08h data=0x%08h strb=0x%01h order=%0d ch_delay=%0d gap=%0d awstall=%0d wstall=%0d bready_delay=%0d bstall=%0d resp=%0d",
+                addr, data, strb, write_order, channel_delay, handshake_gap,
+                aw_stall_cycles, w_stall_cycles, bready_delay, b_stall_cycles, resp);
         end
         else begin
-            return $sformatf("READ addr=0x%08h rdata=0x%08h resp=%0d", addr, rdata, resp);
+            return $sformatf(
+                "READ addr=0x%08h arstall=%0d rready_delay=%0d rstall=%0d rdata=0x%08h resp=%0d",
+                addr, ar_stall_cycles, rready_delay, r_stall_cycles, rdata, resp);
         end
     endfunction
 endclass

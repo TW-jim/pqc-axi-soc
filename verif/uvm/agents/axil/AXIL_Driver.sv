@@ -76,9 +76,36 @@ class AXIL_Driver extends uvm_driver #(AXIL_Transaction);
         @(negedge vif.ACLK);
         drive_w_now(tr);
     endtask
+    // B response
+    task accept_b_response(AXIL_Transaction tr);
+        int timeout_count;
+        vif.S_AXI_BREADY = 1'b0;
+        timeout_count = 0;
+        while(!vif.S_AXI_BVALID) begin
+            @(posedge vif.ACLK);
+            @(negedge vif.ACLK);
+            timeout_count++;
+            if(timeout_count > 100) begin
+                `uvm_fatal("AXIL_DRIVER", $sformatf(
+                    "Timeout waiting for BVALID: order=%0d ch_delay=%0d",
+                    tr.write_order, tr.channel_delay))
+            end
+        end
+        repeat(tr.bready_delay) begin
+            @(posedge vif.ACLK);
+            if(!vif.S_AXI_BVALID)
+                `uvm_fatal("AXIL_DRIVER", "BVALID dropped while BREADY was low")
+            @(negedge vif.ACLK);
+        end
+        tr.resp = vif.S_AXI_BRESP;
+        vif.S_AXI_BREADY = 1'b1;
+        @(posedge vif.ACLK);
+        `uvm_info("AXIL_DRIVER", "B handshake completed", UVM_HIGH)
+        @(negedge vif.ACLK);
+        vif.S_AXI_BREADY = 1'b0;
+    endtask
     // Write transaction
     task drive_write(AXIL_Transaction tr);
-        int timeout_count;
         vif.S_AXI_BREADY = 1'b0;
         case(tr.write_order)
             AXIL_AW_W_SAME: begin
@@ -106,27 +133,31 @@ class AXIL_Driver extends uvm_driver #(AXIL_Transaction);
                 `uvm_fatal("AXIL_DRIVER", $sformatf("Invalid write_order=%0d", tr.write_order))
             end
         endcase
-        // B response
-        @(negedge vif.ACLK);
-        vif.S_AXI_BREADY = 1'b1;
+        accept_b_response(tr);
+    endtask
+    // R channel
+    task accept_r_response(AXIL_Transaction tr);
+        int timeout_count;
+        vif.S_AXI_RREADY = 1'b0;
         timeout_count = 0;
-        // Same principle:
-        // sample BVALID before the rising-edge handshake.
-        while(!vif.S_AXI_BVALID) begin
+        while(!vif.S_AXI_RVALID) begin
             @(posedge vif.ACLK);
             @(negedge vif.ACLK);
             timeout_count++;
-            if(timeout_count > 100) begin
-                `uvm_fatal("AXIL_DRIVER", $sformatf(
-                        "Timeout waiting for BVALID: order=%0d delay=%0d",
-                        tr.write_order, tr.channel_delay))
-            end
+            if(timeout_count > 100) `uvm_fatal("AXIL_DRIVER", "Timeout waiting for RVALID")
         end
-        tr.resp = vif.S_AXI_BRESP;
+        repeat(tr.rready_delay) begin
+            @(posedge vif.ACLK);
+            if(!vif.S_AXI_RVALID) `uvm_fatal("AXIL_DRIVER", "RVALID dropped while RREADY was low")
+            @(negedge vif.ACLK);
+        end
+        tr.rdata = vif.S_AXI_RDATA;
+        tr.resp = vif.S_AXI_RRESP;
+        vif.S_AXI_RREADY = 1'b1;
         @(posedge vif.ACLK);
-        `uvm_info("AXIL_DRIVER", "B handshake completed", UVM_HIGH)
+        `uvm_info("AXIL_DRIVER", "R handshake completed", UVM_HIGH)
         @(negedge vif.ACLK);
-        vif.S_AXI_BREADY = 1'b0;
+        vif.S_AXI_RREADY = 1'b0;
     endtask
     // Read transaction
     task drive_read(AXIL_Transaction tr);
@@ -146,20 +177,6 @@ class AXIL_Driver extends uvm_driver #(AXIL_Transaction);
         `uvm_info("AXIL_DRIVER", "AR handshake completed", UVM_HIGH)
         @(negedge vif.ACLK);
         vif.S_AXI_ARVALID = 1'b0;
-        // R channel
-        vif.S_AXI_RREADY = 1'b1;
-        timeout_count = 0;
-        while(!vif.S_AXI_RVALID) begin
-            @(posedge vif.ACLK);
-            @(negedge vif.ACLK);
-            timeout_count++;
-            if(timeout_count > 100) `uvm_fatal("AXIL_DRIVER", "Timeout waiting for RVALID")
-        end
-        tr.rdata = vif.S_AXI_RDATA;
-        tr.resp = vif.S_AXI_RRESP;
-        @(posedge vif.ACLK);
-        `uvm_info("AXIL_DRIVER", "R handshake completed", UVM_HIGH)
-        @(negedge vif.ACLK);
-        vif.S_AXI_RREADY = 1'b0;
+        accept_r_response(tr);
     endtask
 endclass

@@ -5,6 +5,7 @@ module tb_Top;
     // Clock / Reset
     logic ACLK;
     logic ARESETn;
+    logic initial_reset_n;
     // AXI-Lite Interface
     AXIL_if axil_vif (
         .ACLK (ACLK),
@@ -44,16 +45,17 @@ module tb_Top;
         ACLK = 1'b0;
         forever #5 ACLK = ~ACLK;
     end
+    assign ARESETn = initial_reset_n && !axil_vif.tb_reset_req;
     // Reset / accelerator status
     initial begin
-        ARESETn = 1'b0;
+        initial_reset_n = 1'b0;
         axil_vif.Busy = 1'b0;
         axil_vif.Done = 1'b0;
         axil_vif.Error = 1'b0;
         repeat(5)
             @(posedge ACLK);
         @(negedge ACLK);
-        ARESETn = 1'b1;
+        initial_reset_n = 1'b1;
     end
     // UVM
     initial begin

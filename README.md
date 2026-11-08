@@ -9,7 +9,7 @@ The project focuses on SoC-style integration, self-checking RTL verification, AS
 ## Current Status
 
 - Shared AXI4-Lite control and AXI4 burst data movement implemented for both compile-time variants
-- UVM-based AXI4-Lite register-block verification added with directed smoke testing, constrained-random stimulus, scoreboard checking, and functional coverage closure
+- UVM-based AXI4-Lite register-block verification completed with constrained-random stimulus, directed protocol stress, five-channel stall/backpressure testing, concurrent read/write traffic, reset-under-activity testing, scoreboard/protocol checking, and **100.0% functional coverage closure (166/166 bins)**
 - Dilithium / ML-DSA integrated, self-checking verified, architecture-optimized, and implemented through RTL-to-GDS
 - V2 banked-buffer architecture implemented and verified
 - Dilithium clock-period characterization completed: **540.54 MHz timing-clean**, while **555.56 MHz fails setup timing**
@@ -59,37 +59,51 @@ The integrated Kyber design was verified using the same verification methodology
 
 ### AXI4-Lite UVM Verification
 
-A SystemVerilog/UVM environment was added for `rtl/bus/NTT_AXIL_Regs.v` and exercised with Verilator 5.052 and Accellera UVM 2020.3.2-vlt. The current environment includes:
+A SystemVerilog/UVM environment was developed for `rtl/bus/NTT_AXIL_Regs.v` and exercised with Verilator 5.052 and Accellera UVM 2020.3.2-vlt. The environment targets the public **single-outstanding AXI4-Lite register slave** and includes:
 
-- UVM transaction, sequencer, driver, monitor, agent, environment, scoreboard, sequences, tests, and coverage subscriber
-- Directed smoke testing for CONTROL, SRC_ADDR, and DST_ADDR register access
+- UVM transaction, sequencer, driver, monitor, active/passive agent, environment, scoreboard, directed/constrained-random sequences, tests, and coverage subscriber
 - Constrained-random read/write traffic across CONTROL, STATUS, SRC_ADDR, and DST_ADDR
-- Random 32-bit write data and non-zero partial `WSTRB` values
-- Randomized AXI-Lite write-channel ordering: AW/W together, AW first, or W first
-- Random inter-channel delay of 0-3 cycles
-- Driver-side handshake timeouts to turn protocol stalls into actionable UVM failures
-- Scoreboard reference modeling for writable registers, read-only STATUS behavior, and byte-enable updates
+- Random 32-bit write data and all non-zero partial `WSTRB` patterns
+- Observed AW/W ordering coverage for same-cycle, AW-first, and W-first transfers
+- Observed AW/W handshake-gap coverage
+- Request-side AW, W, and AR stall testing
+- Response-side B and R backpressure testing
+- Five-channel protocol checking for handshake ordering and signal stability while stalled
+- Concurrent read/write testing with one direction active while the opposite response is backpressured
+- Reset-under-activity testing for partial write requests and stalled B/R responses
+- Scoreboard reference modeling for writable registers, read-only STATUS behavior, byte-enable updates, and reset synchronization
+- Coverage-driven closure based on bus activity reconstructed independently by the monitor
 
-Three constrained-random seeds were run with **100 transactions per seed (300 total)**. All three regressions completed with **UVM_ERROR = 0** and **UVM_FATAL = 0**.
+Three constrained-random seeds were run with **100 transactions per seed (300 total)**. Directed regressions were then used to exercise protocol timing, request-side stalls, response backpressure, concurrent read/write activity, reset-under-activity behavior, and targeted coverage holes. The verified v6 regression completed with **UVM_ERROR = 0** and **UVM_FATAL = 0** for all executed tests.
 
-The current functional-coverage model extends the original register-access coverage with observed AXI-Lite write-channel timing behavior. It covers operation, register address, all 15 non-zero `WSTRB` patterns, operation × address, address × `WSTRB`, observed AW/W ordering, observed AW/W handshake gap, legal write-timing classes, and write ordering × address.
+The current functional-coverage model contains **166 bins**. It covers register operation/address access, all 15 non-zero `WSTRB` values, operation × address, address × `WSTRB`, observed AW/W order and handshake gap, legal write-timing classes, write-order × address, AW/W/B/AR/R stall classes, write-order × B-stall, and address × R-stall.
 
-The v2 model contains **118 functional coverage bins**. The three-seed constrained-random regression reached **117/118 bins (99.2%)**. Coverage-hole analysis identified the only remaining bin as **`SRC_ADDR × WSTRB = 4'hA`**. A targeted coverage-closure sequence was then added to exercise that case and verify the resulting byte-enable behavior through register readback. The final merged result reached **100.0% functional coverage (118/118 bins)** with **UVM_ERROR = 0** and **UVM_FATAL = 0**.
+| Regression | Individual Functional Coverage | Result |
+|---|---:|---|
+| Random seed 1 (100 transactions) | 75.90% | PASS |
+| Random seed 2 (100 transactions) | 79.52% | PASS |
+| Random seed 3 (100 transactions) | 79.52% | PASS |
+| Directed protocol stress | 43.37% | PASS |
+| AW/W/AR request-side stall test | 24.70% | PASS |
+| Concurrent read/write test | 16.27% | PASS |
+| Reset-under-activity test | 12.65% | PASS |
+| Targeted coverage-closure test | 15.06% | PASS |
+| **Final merged regression** | **100.0% (166/166)** | **CLOSED** |
 
-| Regression | Functional Coverage |
-|---|---:|
-| Random seed 1 | 83.1% (98/118) |
-| Random seed 2 | 83.9% (99/118) |
-| Random seed 3 | 90.7% (107/118) |
-| Seeds 1-3 merged | 99.2% (117/118) |
-| Coverage-closure test | Targeted `SRC_ADDR × WSTRB = 4'hA` |
-| **Final merged** | **100.0% (118/118)** |
+The directed protocol regression independently reconstructs the actual bus-level AW/W ordering and handshake gap in the monitor. The protocol checker also exercises all five AXI4-Lite channels under request stalls and response backpressure while checking signal stability during stalled transfers.
 
-The 118-bin model consists of 2 operation bins, 4 address bins, 15 write-strobe bins, 3 observed write-order bins, 5 observed handshake-gap bins, 9 legal write-timing-class bins, 8 operation × address cross bins, 60 address × write-strobe cross bins, and 12 write-order × address cross bins.
+Coverage closure was driven by uncovered-bin analysis rather than additional blind randomization. The closure sequence includes partial-byte write/readback checks for `SRC_ADDR × WSTRB = 4'hA` and `DST_ADDR × WSTRB = 4'hD`, producing expected readback values of `32'hA500_5A00` and `32'hC3A5_0096`, respectively.
 
-The observed timing model distinguishes AW/W handshakes in the same cycle from AW-first and W-first transactions with one-, two-, three-, and four-or-more-cycle handshake gaps. The UVM driver generates the intended ordering and inter-channel delay, while the monitor independently reconstructs the actual bus-level ordering and handshake gap from observed AXI-Lite handshakes before coverage is sampled.
+The final v6 merged regression combines the three constrained-random seeds with protocol, channel-stall, concurrent read/write, reset-stress, and targeted closure tests and reaches **100.0% functional coverage (166/166 bins)**.
 
-The directed coverage-closure case writes `SRC_ADDR` with `WSTRB = 4'hA` and performs a readback check so the final coverage point is closed with functional byte-enable verification rather than coverage-only stimulus.
+This result represents closure of the explicit AXI4-Lite functional-coverage model for this register block; it is not a claim of exhaustive verification of every possible AXI4/AXI4-Lite system behavior or of the complete SoC.
+
+A public one-command regression entry point is provided at `verif/uvm/run_regression.sh`. With `UVM_HOME` set to the installed UVM 2020.3.2-vlt tree, it rebuilds the UVM testbench, runs the verified v6 directed and constrained-random regression set, checks every UVM report for zero errors/fatals, merges the coverage databases, and requires **100.0% (166/166)** functional coverage.
+
+```bash
+chmod +x verif/uvm/run_regression.sh
+./verif/uvm/run_regression.sh
+```
 
 Detailed coverage-model documentation and reproducibility commands are provided in [`verif/uvm/coverage/README.md`](verif/uvm/coverage/README.md).
 

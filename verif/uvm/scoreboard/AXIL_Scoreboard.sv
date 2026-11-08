@@ -4,6 +4,7 @@ class AXIL_Scoreboard extends uvm_scoreboard;
         AXIL_Transaction,
         AXIL_Scoreboard
     ) analysis_export;
+    virtual AXIL_if vif;
     bit exp_mode;
     bit [31:0] exp_src_addr;
     bit [31:0] exp_dst_addr;
@@ -17,6 +18,19 @@ class AXIL_Scoreboard extends uvm_scoreboard;
     endfunction
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
+        if(!uvm_config_db #(virtual AXIL_if)::get(this, "", "vif", vif)) begin
+            `uvm_fatal("NO_VIF", "AXIL_Scoreboard cannot get virtual interface")
+        end
+        reset_model();
+    endfunction
+    task run_phase(uvm_phase phase);
+        forever begin
+            @(negedge vif.ARESETn);
+            reset_model();
+            `uvm_info("AXIL_SB", "Reference model reset by ARESETn", UVM_HIGH)
+        end
+    endtask
+    function void reset_model();
         exp_mode = 1'b0;
         exp_src_addr = 32'b0;
         exp_dst_addr = 32'b0;
@@ -39,7 +53,8 @@ class AXIL_Scoreboard extends uvm_scoreboard;
         // WRITE
         if(tr.op == AXIL_WRITE) begin
             if(tr.resp != 2'b00) begin
-                `uvm_error("AXIL_SB", $sformatf("Write response error: %s", tr.convert2string()))
+                `uvm_error("AXIL_SB", $sformatf("Write response error: resp=%0d addr=0x%08h",
+                    tr.resp, tr.addr))
             end
             case(tr.addr)
                 ADDR_CONTROL: if(tr.strb[0]) exp_mode = tr.data[1];
@@ -49,7 +64,10 @@ class AXIL_Scoreboard extends uvm_scoreboard;
                 ADDR_DST_ADDR: exp_dst_addr = apply_wstrb(exp_dst_addr, tr.data, tr.strb);
                 default: ;
             endcase
-            `uvm_info("AXIL_SB", $sformatf("Observed %s", tr.convert2string()), UVM_MEDIUM)
+            `uvm_info("AXIL_SB", $sformatf(
+                "Observed WRITE addr=0x%08h data=0x%08h strb=0x%01h order=%0d gap=%0d bstall=%0d resp=%0d",
+                tr.addr, tr.data, tr.strb, tr.write_order,
+                tr.handshake_gap, tr.b_stall_cycles, tr.resp), UVM_MEDIUM)
         end
         // READ
         else begin
@@ -63,17 +81,18 @@ class AXIL_Scoreboard extends uvm_scoreboard;
                 default: expected = 32'b0;
             endcase
             if(tr.resp != 2'b00) begin
-                `uvm_error("AXIL_SB", $sformatf("Read response error: %s", tr.convert2string()))
+                `uvm_error("AXIL_SB", $sformatf(
+                    "Read response error: resp=%0d addr=0x%08h", tr.resp, tr.addr))
             end
             if(tr.rdata != expected) begin
                 `uvm_error("AXIL_SB", $sformatf(
-                    "READ MISMATCH addr=0x%08h expected=0x%08h actual=0x%08h",
-                    tr.addr, expected, tr.rdata)
-                )
+                    "READ MISMATCH addr=0x%08h expected=0x%08h actual=0x%08h rstall=%0d",
+                    tr.addr, expected, tr.rdata, tr.r_stall_cycles))
             end
             else begin
-                `uvm_info("AXIL_SB", $sformatf("READ PASS addr=0x%08h data=0x%08h",
-                    tr.addr, tr.rdata), UVM_LOW)
+                `uvm_info("AXIL_SB", $sformatf(
+                    "READ PASS addr=0x%08h data=0x%08h rstall=%0d",
+                    tr.addr, tr.rdata, tr.r_stall_cycles), UVM_LOW)
             end
         end
     endfunction

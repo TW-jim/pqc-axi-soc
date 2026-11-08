@@ -26,4 +26,5 @@ interface AXIL_if (
     logic Mode;
     logic [31:0] Src_addr;
     logic [31:0] Dst_addr;
+    logic tb_reset_req = 1'b0;
 endinterface
